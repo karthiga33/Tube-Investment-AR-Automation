@@ -1,0 +1,78 @@
+.validation-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 22px;
+  background: #fff;
+  border-top: 1.5px solid #e5e9f0;
+  flex-shrink: 0;
+}
+
+.footer-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.progress-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot-approved { background: #16a34a; }
+.dot-rejected { background: #f59e0b; }
+.dot-pending  { background: #e5e7eb; }
+
+.progress-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.progress-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.stat {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.stat.approved { background: #dcfce7; color: #15803d; }
+.stat.rejected { background: #fef3c7; color: #b45309; }
+.stat.pending  { background: #f3f4f6; color: #6b7280; }
+
+.btn-review-flags {
+  padding: 7px 16px;
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-review-flags:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-review-flags:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

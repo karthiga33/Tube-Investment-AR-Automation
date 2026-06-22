@@ -1,0 +1,149 @@
+.validation-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.validation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.validation-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1.5px solid #e5e9f0;
+  z-index: 1;
+}
+
+.vt-row {
+  border-bottom: 1px solid #f0f2f7;
+  transition: background 0.12s;
+}
+
+.vt-row:hover {
+  background: #fafbff;
+}
+
+.vt-row.row-rejected {
+  background: #fff5f5;
+}
+
+.vt-row td {
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+
+/* Field ID */
+.field-id-tag {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  letter-spacing: 0.3px;
+}
+
+/* Value */
+.value-cell {
+  color: #374151;
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 110px;
+}
+
+.value-alert {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* Confidence bar */
+.confidence-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 110px;
+}
+
+.confidence-bar-track {
+  flex: 1;
+  height: 5px;
+  background: #e5e9f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.confidence-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.confidence-label {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Action buttons */
+.status-cell {
+  text-align: right;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+/* Approve — default (ghost green) */
+.approve-btn {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #16a34a;
+}
+.approve-btn:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+.approve-btn.active-approve {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+/* Reject — default (ghost red) */
+.reject-btn {
+  background: #fff5f5;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.reject-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+.reject-btn.active-reject {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}

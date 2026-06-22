@@ -1,0 +1,168 @@
+.document-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 46px;
+  background: #fff;
+  border-bottom: 1px solid #e5e9f0;
+  flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.doc-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nav-arrow {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #e5e9f0;
+  background: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.nav-arrow:hover {
+  background: #f3f4f6;
+  color: #1a1f36;
+}
+
+.doc-filename {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pdf-icon { font-size: 14px; flex-shrink: 0; }
+
+.filename-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.doc-count {
+  font-size: 11px;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.doc-separator {
+  width: 1px;
+  height: 20px;
+  background: #e5e9f0;
+  flex-shrink: 0;
+}
+
+.company-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1f36;
+  flex-shrink: 0;
+}
+
+.lock-icon { font-size: 12px; }
+
+.btn-ai-guide {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-badge {
+  font-size: 9px;
+}
+
+/* Right side */
+.doc-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.approved-badge {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.rejected-badge {
+  background: #fff5f5;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.pending-badge {
+  background: #fefce8;
+  color: #a16207;
+  border: 1px solid #fde68a;
+}
+
+.btn-reject,
+.btn-approve {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.btn-reject {
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  color: #374151;
+}
+.btn-reject:hover {
+  background: #f9fafb;
+}
+
+.btn-approve {
+  background: #16a34a;
+  color: #fff;
+}
+.btn-approve:hover {
+  background: #15803d;
+}

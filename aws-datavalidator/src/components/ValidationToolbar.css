@@ -1,0 +1,107 @@
+.validation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 22px;
+  background: #fff;
+  border-bottom: 1px solid #e5e9f0;
+  flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1f36;
+  margin-right: 4px;
+}
+
+.btn-approve-all,
+.btn-reject-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid;
+  transition: all 0.15s;
+}
+
+.btn-approve-all {
+  background: #fff;
+  color: #1a1f36;
+  border-color: #d1d5db;
+}
+.btn-approve-all:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-reject-all {
+  background: #fff;
+  color: #1a1f36;
+  border-color: #d1d5db;
+}
+.btn-reject-all:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.5px;
+}
+
+.btn-export-csv {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid #2563eb;
+  background: transparent;
+  color: #2563eb;
+  transition: all 0.15s;
+}
+
+.btn-export-csv:hover {
+  background: #eff6ff;
+}
+
+.sync-feedback {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.sync-feedback.success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.sync-feedback.error {
+  background: #fee2e2;
+  color: #dc2626;
+}

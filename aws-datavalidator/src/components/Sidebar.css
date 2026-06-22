@@ -1,0 +1,138 @@
+.sidebar {
+  width: 200px;
+  background: #fff;
+  border-right: 1px solid #e5e9f0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100vh;
+  box-shadow: 1px 0 4px rgba(0,0,0,0.04);
+}
+
+.project-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid #f0f2f7;
+  margin-bottom: 8px;
+}
+
+.project-icon {
+  width: 36px;
+  height: 36px;
+  background: #eff6ff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.project-info {
+  overflow: hidden;
+}
+
+.project-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1f36;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-bucket {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  text-decoration: none;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.sidebar-item:hover {
+  background: #f3f4f6;
+  color: #1a1f36;
+}
+
+.sidebar-item.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+  border-left: 3px solid #2563eb;
+  padding-left: 7px;
+}
+
+.sidebar-footer {
+  padding: 12px 10px 16px;
+  border-top: 1px solid #f0f2f7;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-new-validation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+
+.btn-new-validation:hover {
+  background: #1d4ed8;
+}
+
+.footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.footer-link:hover {
+  background: #f3f4f6;
+  color: #1a1f36;
+}
