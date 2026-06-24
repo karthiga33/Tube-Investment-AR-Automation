@@ -217,3 +217,124 @@
   font-size: 11px;
   color: #9ca3af;
 }
+
+
+/* ── TXT file preview ────────────────────── */
+.preview-txt-wrapper {
+  flex: 1;
+  overflow: auto;
+  background: #fff;
+  padding: 24px;
+}
+
+.preview-txt {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #1a1f36;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+.preview-txt-loading {
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+  padding: 40px 0;
+}
+
+
+/* ── Excel file preview ──────────────────── */
+.preview-excel-wrapper {
+  flex: 1;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.excel-sheet-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 12px;
+  background: #f1f3f5;
+  border-bottom: 1px solid #e5e9f0;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.excel-tab {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.excel-tab:hover {
+  color: #1a1f36;
+  background: #e5e9f0;
+}
+
+.excel-tab.active {
+  color: #1a1f36;
+  font-weight: 600;
+  border-bottom-color: #1a1f36;
+  background: #fff;
+}
+
+.excel-table-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.excel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.excel-table th,
+.excel-table td {
+  padding: 5px 10px;
+  border: 1px solid #e5e9f0;
+  text-align: left;
+  white-space: nowrap;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.excel-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #374151;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.excel-header-row th {
+  background: #1a1f36;
+  color: #fff;
+  font-weight: 600;
+}
+
+.excel-table td {
+  color: #1a1f36;
+}
+
+.excel-table tr:nth-child(even) td {
+  background: #f9fafb;
+}
+
+.excel-table tr:hover td {
+  background: #eef2ff;
+}
