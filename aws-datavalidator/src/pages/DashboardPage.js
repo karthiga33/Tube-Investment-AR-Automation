@@ -18,6 +18,11 @@ const fmtSize = (b) => {
   return `${(b / 1048576).toFixed(1)} MB`;
 };
 
+const getFileType = (sourceType) => {
+  if (!sourceType) return 'PDF';
+  return sourceType.toUpperCase();
+};
+
 // ── Excel-style column filter dropdown ───────────────────────────────────────
 function ColFilter({ label, type, options, value, onChange, onClear, active }) {
   const [open, setOpen] = useState(false);
@@ -118,6 +123,7 @@ function ColFilter({ label, type, options, value, onChange, onClear, active }) {
 const DEFAULT_FILTERS = {
   name:          '',
   company:       '',
+  fileType:      [],            // [] = show all
   status:        [],           // [] = show all
   last_modified: { from: '', to: '' },
 };
@@ -159,6 +165,7 @@ export default function DashboardPage() {
   const visible = files.filter(f => {
     if (filters.name && !f.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
     if (filters.company && !f.company.toLowerCase().includes(filters.company.toLowerCase())) return false;
+    if (filters.fileType.length > 0 && !filters.fileType.includes(getFileType(f.source_type))) return false;
     if (filters.status.length > 0 && !filters.status.includes(f.status)) return false;
     if (filters.last_modified.from) {
       const from = new Date(filters.last_modified.from);
@@ -175,6 +182,7 @@ export default function DashboardPage() {
   const anyActive =
     filters.name !== '' ||
     filters.company !== '' ||
+    filters.fileType.length > 0 ||
     filters.status.length > 0 ||
     filters.last_modified.from !== '' ||
     filters.last_modified.to !== '';
@@ -267,6 +275,23 @@ export default function DashboardPage() {
                       active={filters.name !== ''}
                     />
                   </th>
+                  {/* File Type */}
+                  <th>
+                    <ColFilter
+                      label="File Type"
+                      type="checkbox"
+                      options={[
+                        { value: 'PDF',   label: 'PDF'   },
+                        { value: 'EXCEL', label: 'EXCEL' },
+                        { value: 'HTML',  label: 'HTML'  },
+                        { value: 'TXT',   label: 'TXT'   },
+                      ]}
+                      value={filters.fileType}
+                      onChange={v => setFilter('fileType', v)}
+                      onClear={() => clearFilter('fileType')}
+                      active={filters.fileType.length > 0}
+                    />
+                  </th>
                   {/* Company */}
                   <th>
                     <ColFilter
@@ -312,7 +337,7 @@ export default function DashboardPage() {
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="no-results">
+                    <td colSpan={7} className="no-results">
                       No files match the current filters.&nbsp;
                       <button className="btn-clear-inline" onClick={clearAll}>Clear filters</button>
                     </td>
@@ -325,6 +350,11 @@ export default function DashboardPage() {
                           <FileSpreadsheet size={14} className="icon-excel" />
                           <span className="file-name-text" title={file.name}>{file.name}</span>
                         </div>
+                      </td>
+                      <td className="meta-cell">
+                        <span className={`file-type-badge ftype-${getFileType(file.source_type).toLowerCase()}`}>
+                          {getFileType(file.source_type)}
+                        </span>
                       </td>
                       <td className="company-cell">{file.company}</td>
                       <td className="meta-cell">{fmtSize(file.size)}</td>

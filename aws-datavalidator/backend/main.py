@@ -606,10 +606,13 @@ def dashboard_summary():
         raw_stem   = Path(f["name"]).stem               # MAHAVIR_extracted
         clean_stem = raw_stem.replace("_extracted", "") # MAHAVIR
         company    = clean_stem.replace("_", " ")
+        source_type = "PDF"  # default source type
         # Priority 1: in-memory cache (user opened the file)
         cached = _store.get(f["key"])
         if cached and cached.get("header", {}).get("cust_name"):
             company = cached["header"]["cust_name"]
+        if cached and cached.get("header", {}).get("src"):
+            source_type = cached["header"]["src"]
         # Priority 2: approved JSON (has vendor name from previous approval)
         elif clean_stem.lower() in vendor_names:
             company = vendor_names[clean_stem.lower()]
@@ -626,12 +629,20 @@ def dashboard_summary():
                         name = _str(rem.iloc[0].get("CUSTOMER_NAME"))
                         if name:
                             company = name
+                    if not rem.empty and "SOURCE_TYPE" in rem.columns:
+                        src_val = _str(rem.iloc[0].get("SOURCE_TYPE"))
+                        if src_val:
+                            source_type = src_val
                 elif "Header" in sheets:
                     hdr = xl.parse("Header", nrows=1)
                     if not hdr.empty and "VENDOR_NAME" in hdr.columns:
                         name = _str(hdr.iloc[0].get("VENDOR_NAME"))
                         if name:
                             company = name
+                    if not hdr.empty and "SOURCE" in hdr.columns:
+                        src_val = _str(hdr.iloc[0].get("SOURCE"))
+                        if src_val:
+                            source_type = src_val
                 else:
                     df = xl.parse(sheets[0], nrows=1)
                     df.columns = [str(c).strip() for c in df.columns]
@@ -641,11 +652,17 @@ def dashboard_summary():
                             if name:
                                 company = name
                                 break
+                    for col_name in ["SOURCE_TYPE", "SOURCE", "src"]:
+                        if col_name in df.columns and not df.empty:
+                            src_val = _str(df.iloc[0].get(col_name))
+                            if src_val:
+                                source_type = src_val
+                                break
             except Exception:
                 pass
         entry      = status_map.get(clean_stem.lower())
         file_status = entry["status"] if entry else "pending"
-        enriched.append({**f, "company": company, "status": file_status})
+        enriched.append({**f, "company": company, "status": file_status, "source_type": source_type})
 
     return {
         "output":   enriched,
