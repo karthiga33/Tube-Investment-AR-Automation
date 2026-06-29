@@ -165,6 +165,11 @@
 .cf-badge-pending  { background: #fef3c7; color: #d97706; }
 .cf-badge-approved { background: #dcfce7; color: #16a34a; }
 .cf-badge-rejected { background: #fee2e2; color: #dc2626; }
+.cf-badge-PDF      { background: #fef2f2; color: #dc2626; }
+.cf-badge-DOC      { background: #eff6ff; color: #1d4ed8; }
+.cf-badge-EXCEL    { background: #f0fdf4; color: #16a34a; }
+.cf-badge-HTML     { background: #eff6ff; color: #2563eb; }
+.cf-badge-TXT      { background: #f5f3ff; color: #7c3aed; }
 
 /* Text search */
 .cf-text-wrap { padding: 10px 12px; }
@@ -289,6 +294,12 @@
   background: #fef2f2;
   color: #dc2626;
   border: 1px solid #fecaca;
+}
+
+.ftype-doc {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
 }
 
 .ftype-excel {

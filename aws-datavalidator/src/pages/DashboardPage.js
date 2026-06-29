@@ -282,6 +282,7 @@ export default function DashboardPage() {
                       type="checkbox"
                       options={[
                         { value: 'PDF',   label: 'PDF'   },
+                        { value: 'DOC',   label: 'DOC'   },
                         { value: 'EXCEL', label: 'EXCEL' },
                         { value: 'HTML',  label: 'HTML'  },
                         { value: 'TXT',   label: 'TXT'   },

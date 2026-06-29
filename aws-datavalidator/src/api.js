@@ -26,5 +26,6 @@ export const api = {
   deleteFile:   (key)     => req(`/api/file/delete?key=${encodeURIComponent(key)}`, { method: "POST" }),
   presignUrl:   (key)     => req(`/api/file/presign?key=${encodeURIComponent(key)}`),
   findInput:    (outKey)  => req(`/api/file/find-input?output_key=${encodeURIComponent(outKey)}`),
+  docPreview:   (key)     => req(`/api/file/doc-preview?key=${encodeURIComponent(key)}`),
   viewUrl:      (key)     => `${BASE}/api/file/view?key=${encodeURIComponent(key)}`,
 };

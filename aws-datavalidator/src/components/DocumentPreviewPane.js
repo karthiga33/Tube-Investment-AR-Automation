@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, AlignLeft, ZoomIn, ZoomOut, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
+import { api } from '../api';
 import './DocumentPreviewPane.css';
 
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'tiff', 'bmp', 'webp'];
@@ -8,6 +10,7 @@ const PDF_EXTS   = ['pdf'];
 const HTML_EXTS  = ['html', 'htm'];
 const TEXT_EXTS  = ['txt'];
 const EXCEL_EXTS = ['xls', 'xlsx', 'xlsm', 'xlsb', 'csv'];
+const DOC_EXTS   = ['doc', 'docx'];
 
 /* ─────────────────────────────────────────────────────────────────────────────
    PaymentAdviceDoc — rendered when no source file is available.
@@ -62,6 +65,8 @@ export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, he
   const [excelLoading, setExcelLoading] = useState(false);
   const [excelSheets, setExcelSheets] = useState([]);
   const [activeSheet, setActiveSheet] = useState('');
+  const [docHtml, setDocHtml] = useState('');
+  const [docLoading, setDocLoading] = useState(false);
 
   const ext = (inputExt || '').toLowerCase();
   const isPdf   = PDF_EXTS.includes(ext);
@@ -69,6 +74,7 @@ export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, he
   const isHtml  = HTML_EXTS.includes(ext);
   const isTxt   = TEXT_EXTS.includes(ext);
   const isExcel = EXCEL_EXTS.includes(ext);
+  const isDoc   = DOC_EXTS.includes(ext);
   const hasUrl  = Boolean(previewUrl);
 
   // Fetch .txt file content when it's a text file
@@ -105,6 +111,56 @@ export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, he
         });
     }
   }, [isExcel, hasUrl, previewUrl]);
+
+  // Fetch and convert DOC/DOCX to HTML using mammoth (client) or backend API
+  useEffect(() => {
+    if (isDoc && hasUrl) {
+      setDocLoading(true);
+      fetch(previewUrl)
+        .then(res => res.arrayBuffer())
+        .then(buffer => {
+          // Try mammoth for .docx files
+          if (ext === 'docx') {
+            return mammoth.convertToHtml({ arrayBuffer: buffer }).then(result => {
+              if (result.value && result.value.trim().length > 10) {
+                setDocHtml(result.value);
+                setDocLoading(false);
+              } else {
+                throw new Error('Empty result');
+              }
+            });
+          } else {
+            throw new Error('Not docx — use backend');
+          }
+        })
+        .catch(() => {
+          // Fallback: use backend doc-preview API
+          // We need the S3 key — extract from the previewUrl or use inputFile key
+          // The previewUrl contains the key as a query param
+          try {
+            const urlObj = new URL(previewUrl);
+            const key = urlObj.searchParams.get('key');
+            if (key) {
+              api.docPreview(key)
+                .then(data => {
+                  setDocHtml(data.html || '');
+                  setDocLoading(false);
+                })
+                .catch(() => {
+                  setDocHtml('');
+                  setDocLoading(false);
+                });
+            } else {
+              setDocHtml('');
+              setDocLoading(false);
+            }
+          } catch {
+            setDocHtml('');
+            setDocLoading(false);
+          }
+        });
+    }
+  }, [isDoc, hasUrl, previewUrl, ext]);
 
   return (
     <div className="preview-pane">
@@ -220,13 +276,27 @@ export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, he
           </div>
         )}
 
+        {/* DOC/DOCX — rendered as HTML via mammoth */}
+        {isDoc && hasUrl && (
+          <div className="preview-doc-wrapper" style={{ zoom: zoom }}>
+            {docLoading ? (
+              <p className="preview-txt-loading">Loading document…</p>
+            ) : docHtml ? (
+              <div className="preview-doc-content" dangerouslySetInnerHTML={{ __html: docHtml }} />
+            ) : (
+              <PaymentAdviceDoc header={header} />
+            )}
+          </div>
+        )}
+
         {/* No recognized format, or URL missing → structured payment advice */}
-        {((!isPdf && !isImage && !isHtml && !isTxt && !isExcel) ||
+        {((!isPdf && !isImage && !isHtml && !isTxt && !isExcel && !isDoc) ||
           (isPdf && !hasUrl) ||
           (isImage && (!hasUrl || imgError)) ||
           (isHtml && !hasUrl) ||
           (isTxt && !hasUrl) ||
-          (isExcel && !hasUrl)) && (
+          (isExcel && !hasUrl) ||
+          (isDoc && !hasUrl)) && (
           <div style={{ zoom: zoom, flex: 1, overflow: 'auto' }}>
             <PaymentAdviceDoc header={header} />
           </div>

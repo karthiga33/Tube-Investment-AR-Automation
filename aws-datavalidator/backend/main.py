@@ -772,8 +772,8 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                             header = {
                                 "cust_name":   _str(h.get("CUSTOMER_NAME")),
                                 "pay_dt":      _str(h.get("PAYMENT_DATE")),
-                                "pay_amt":     _float(h.get("AMOUNT") or h.get("_computed_payment_amount")),
-                                "utr":         _str(h.get("UTR_REFERENCE_NUMBER")),
+                                "pay_amt":     _float(h.get("AMOUNT") or h.get("_computed_payment_amount") or h.get("PAYMENT_AMOUNT")),
+                                "utr":         _str(h.get("UTR_REFERENCE_NUMBER") or h.get("UTR_REFERENCE_NUA") or h.get("UTR_REFERENCE_NUM")),
                                 "src":         _str(h.get("SOURCE_TYPE", "PDF")),
                                 "cust_code":   _str(h.get("KOD_CUST_CODE")),
                                 "mail_id":     _str(h.get("MAIL_ID")),
@@ -814,13 +814,16 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     log.warning("Raw_JSON parse failed: %s", je)
 
             # Fallback: read flat Remittance sheet directly
-            if not header and not rem.empty:
+            # Trigger fallback if header is empty OR if key fields are missing
+            if (not header or (not header.get("cust_name") and not header.get("pay_amt"))) and not rem.empty:
                 r0 = rem.iloc[0]
+                # UTR column may be named differently across pipelines
+                utr_val = _str(r0.get("UTR_REFERENCE_NUMBER")) or _str(r0.get("UTR_REFERENCE_NUA")) or _str(r0.get("UTR_REFERENCE_NUM"))
                 header = {
                     "cust_name":   _str(r0.get("CUSTOMER_NAME")),
                     "pay_dt":      _str(r0.get("PAYMENT_DATE")),
                     "pay_amt":     _float(r0.get("PAYMENT_AMOUNT")),
-                    "utr":         _str(r0.get("UTR_REFERENCE_NUMBER")),
+                    "utr":         utr_val,
                     "src":         _str(r0.get("SOURCE_TYPE", "PDF")),
                     "cust_code":   _str(r0.get("KOD_CUST_CODE")),
                     "mail_id":     _str(r0.get("MAIL_ID")),
@@ -828,6 +831,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "import_ref":  _str(r0.get("IMPORT_REFERENCE", "")),
                     "cust_payment_id": _str(r0.get("CUST_PAYMENT_ID", "")),
                 }
+                transactions = []  # reset in case partially filled
                 for _, r in rem.iterrows():
                     transactions.append({
                         "doc_no":  _str(r.get("DOCUMENT_NUMBER")),
@@ -847,7 +851,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
             df.columns = [str(c).strip() for c in df.columns]
             log.info("Format C columns in %s: %s", key, list(df.columns))
             col = lambda *names: next((n for n in names if n in df.columns), None)
-            utr_col  = col("UTR_REFERENCE_NUMBER", "UTR_REFERENCE_NUM", "UTR", "utr")
+            utr_col  = col("UTR_REFERENCE_NUMBER", "UTR_REFERENCE_NUM", "UTR_REFERENCE_NUA", "UTR", "utr")
             name_col = col("CUSTOMER_NAME", "VENDOR_NAME", "cust_name")
             dt_col   = col("PAYMENT_DATE", "PAY_DATE", "pay_dt")
             amt_col  = col("PAYMENT_AMOUNT", "PAY_AMOUNT", "pay_amt", "AMOUNT")
@@ -1124,6 +1128,14 @@ def view_file(key: str = Query(..., description="S3 key to stream inline")):
                 ".tiff": "image/tiff",
                 ".bmp":  "image/bmp",
                 ".webp": "image/webp",
+                ".doc":  "application/msword",
+                ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".html": "text/html",
+                ".htm":  "text/html",
+                ".txt":  "text/plain",
+                ".xls":  "application/vnd.ms-excel",
+                ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".csv":  "text/csv",
             }
             ct = ct_map.get(ext, "application/octet-stream")
         return StreamingResponse(
@@ -1138,6 +1150,97 @@ def view_file(key: str = Query(..., description="S3 key to stream inline")):
         if code == "NoSuchKey":
             raise HTTPException(404, f"Key not found: {key}")
         raise HTTPException(502, f"S3 error: {code}")
+
+
+# ── DOC/DOCX preview → convert to HTML ───────────────────────────────────────
+@app.get("/api/file/doc-preview", tags=["Files"])
+def doc_preview(key: str = Query(..., description="S3 key of DOC/DOCX file")):
+    """
+    Convert a DOC/DOCX file from S3 to HTML for browser preview.
+    Uses python-docx for .docx files.
+    """
+    try:
+        raw = s3_get(key)
+    except HTTPException:
+        raise HTTPException(404, f"File not found: {key}")
+
+    ext = Path(key).suffix.lower()
+
+    if ext == ".docx":
+        try:
+            from docx import Document
+            doc = Document(io.BytesIO(raw))
+            html_parts = []
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if not text:
+                    html_parts.append("<br/>")
+                    continue
+                style = para.style.name.lower() if para.style else ""
+                if "heading 1" in style:
+                    html_parts.append(f"<h1>{text}</h1>")
+                elif "heading 2" in style:
+                    html_parts.append(f"<h2>{text}</h2>")
+                elif "heading 3" in style:
+                    html_parts.append(f"<h3>{text}</h3>")
+                else:
+                    html_parts.append(f"<p>{text}</p>")
+
+            # Also extract tables
+            for table in doc.tables:
+                html_parts.append("<table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse;width:100%;margin:12px 0;'>")
+                for i, row in enumerate(table.rows):
+                    html_parts.append("<tr>")
+                    for cell in row.cells:
+                        tag = "th" if i == 0 else "td"
+                        html_parts.append(f"<{tag}>{cell.text.strip()}</{tag}>")
+                    html_parts.append("</tr>")
+                html_parts.append("</table>")
+
+            html = "\n".join(html_parts)
+            return {"html": html, "format": "docx"}
+        except Exception as e:
+            log.warning("DOCX parse failed for %s: %s", key, e)
+            raise HTTPException(422, f"Could not parse DOCX: {str(e)}")
+
+    elif ext == ".doc":
+        # For old .doc binary format, extract text using Word binary structure
+        try:
+            import re
+            # Method: decode as latin-1 (preserves all bytes), then extract
+            # readable text runs (sequences of printable ASCII characters)
+            text = raw.decode("latin-1", errors="ignore")
+            # Extract runs of readable text (at least 20 chars to avoid binary noise)
+            # Word .doc files store text in specific segments
+            # Look for the main text body — it's typically between specific markers
+            # Alternative: extract all readable sentences
+            readable_parts = re.findall(r'[\x20-\x7E]{20,}', text)
+
+            # Filter out lines that look like binary/metadata
+            clean_lines = []
+            for part in readable_parts:
+                # Skip lines that are mostly special chars or look like internal metadata
+                alpha_ratio = sum(1 for c in part if c.isalpha() or c.isspace()) / len(part) if part else 0
+                if alpha_ratio > 0.5 and not part.startswith('PK') and 'theme/theme' not in part and 'Content_Types' not in part and 'xmln' not in part:
+                    clean_lines.append(part.strip())
+
+            if clean_lines:
+                # Join and format as HTML paragraphs
+                # Try to find the main document text (usually the longest coherent block)
+                full_text = " ".join(clean_lines)
+                # Split into sentences/paragraphs at logical breaks
+                paragraphs = re.split(r'(?<=[.!?])\s+(?=[A-Z])', full_text)
+                html = "\n".join(f"<p>{p.strip()}</p>" for p in paragraphs if p.strip())
+            else:
+                html = "<p>Unable to extract text from this .doc file.</p>"
+
+            return {"html": html, "format": "doc"}
+        except Exception as e:
+            log.warning("DOC parse failed for %s: %s", key, e)
+            raise HTTPException(422, f"Could not parse DOC: {str(e)}")
+
+    else:
+        raise HTTPException(400, f"Unsupported file type: {ext}")
 
 
 # ── Upload any file → place in output/ as _extracted.xlsx ─────────────────────

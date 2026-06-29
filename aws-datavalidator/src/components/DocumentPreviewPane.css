@@ -338,3 +338,61 @@
 .excel-table tr:hover td {
   background: #eef2ff;
 }
+
+
+/* ── DOC/DOCX file preview ───────────────── */
+.preview-doc-wrapper {
+  flex: 1;
+  overflow: auto;
+  background: #fff;
+  padding: 24px 32px;
+}
+
+.preview-doc-content {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #1a1f36;
+  word-wrap: break-word;
+}
+
+.preview-doc-content h1,
+.preview-doc-content h2,
+.preview-doc-content h3 {
+  color: #1a1f36;
+  margin: 16px 0 8px;
+}
+
+.preview-doc-content p {
+  margin: 6px 0;
+}
+
+.preview-doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+.preview-doc-content table th,
+.preview-doc-content table td {
+  padding: 6px 10px;
+  border: 1px solid #e5e9f0;
+  text-align: left;
+  font-size: 12px;
+}
+
+.preview-doc-content table th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.preview-doc-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview-doc-content ul,
+.preview-doc-content ol {
+  padding-left: 20px;
+  margin: 8px 0;
+}

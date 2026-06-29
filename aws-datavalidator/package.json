@@ -10,6 +10,7 @@
     "amazon-cognito-identity-js": "^6.3.16",
     "axios": "^1.17.0",
     "lucide-react": "^1.17.0",
+    "mammoth": "^1.8.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-pdf": "^10.4.1",
