@@ -1,4 +1,4 @@
-const BASE = "http://localhost:8000";
+const BASE = "http://ar-automation-main-server-1154735369.ap-south-1.elb.amazonaws.com";
 
 const req = async (path, opts = {}) => {
   const res = await fetch(`${BASE}${path}`, {
