@@ -1,25 +1,26 @@
-name: Deploy to EC2
+name: Deploy Frontend to EC2
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'aws-datavalidator/src/**'
+      - 'aws-datavalidator/public/**'
+      - 'aws-datavalidator/package.json'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to EC2
+      - name: Deploy Frontend to EC2
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/Tube-Investment-AR-Automation
+            cd ~/Tube-Project
             git pull origin main
             cd aws-datavalidator
             npm install
             npm run build
-            cd backend
-            pip install -r requirements.txt
-            sudo systemctl restart datavalidator
