@@ -759,65 +759,10 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
             rem.columns = [str(c).strip() for c in rem.columns]
             log.info("Remittance columns: %s", list(rem.columns))
 
-            # Try Raw_JSON first for richer structured data
-            if "Raw_JSON" in sheets:
-                try:
-                    rj = xl.parse("Raw_JSON")
-                    if not rj.empty and "full_json" in rj.columns:
-                        raw_json = json.loads(rj["full_json"].iloc[0])
-                        vouchers = raw_json.get("vouchers", [])
-                        if vouchers:
-                            v = vouchers[0]
-                            h = v.get("header", {})
-                            header = {
-                                "cust_name":   _str(h.get("CUSTOMER_NAME")),
-                                "pay_dt":      _str(h.get("PAYMENT_DATE")),
-                                "pay_amt":     _float(h.get("AMOUNT") or h.get("_computed_payment_amount") or h.get("PAYMENT_AMOUNT")),
-                                "utr":         _str(h.get("UTR_REFERENCE_NUMBER") or h.get("UTR_REFERENCE_NUA") or h.get("UTR_REFERENCE_NUM")),
-                                "src":         _str(h.get("SOURCE_TYPE", "PDF")),
-                                "cust_code":   _str(h.get("KOD_CUST_CODE")),
-                                "mail_id":     _str(h.get("MAIL_ID")),
-                                "mail_dt":     _str(h.get("MAIL_RECEIVED_DATE")) or None,
-                                "import_ref":  _str(h.get("IMPORT_REFERENCE", "")),
-                                "cust_payment_id": _str(h.get("CUST_PAYMENT_ID", "")),
-                            }
-                            for row in v.get("invoice_rows", []):
-                                transactions.append({
-                                    "doc_no":  _str(row.get("DOCUMENT_NUMBER")),
-                                    "doc_dt":  _str(row.get("DOCUMENT_DATE")),
-                                    "inv_amt": _float(row.get("INVOICE_AMOUNT")),
-                                    "tds":     _float(row.get("TDS_AMOUNT")),
-                                    "ded":     _float(row.get("DEDUCTION_AMOUNT")),
-                                    "disc":    _float(row.get("CASH_DISCOUNT")),
-                                    "net":     _float(row.get("AMOUNT")),
-                                    "status":  "pending",
-                                })
-                            # ── Enrich header from Remittance sheet for fields
-                            #    not present in Raw_JSON (mail_id, mail_dt, etc.)
-                            if not rem.empty:
-                                r0 = rem.iloc[0]
-                                for field, col_name in [
-                                    ("mail_id",          "MAIL_ID"),
-                                    ("mail_dt",          "MAIL_RECEIVED_DATE"),
-                                    ("cust_code",        "KOD_CUST_CODE"),
-                                    ("import_ref",       "IMPORT_REFERENCE"),
-                                    ("cust_payment_id",  "CUST_PAYMENT_ID"),
-                                    ("src",              "SOURCE_TYPE"),
-                                ]:
-                                    if not header.get(field) and col_name in rem.columns:
-                                        val = _str(r0.get(col_name))
-                                        if val:
-                                            header[field] = val
-                            log.info("Enriched header mail_id=%s mail_dt=%s",
-                                     header.get("mail_id"), header.get("mail_dt"))
-                except Exception as je:
-                    log.warning("Raw_JSON parse failed: %s", je)
-
-            # Fallback: read flat Remittance sheet directly
-            # Trigger fallback if header is empty OR if key fields are missing
-            if (not header or (not header.get("cust_name") and not header.get("pay_amt"))) and not rem.empty:
+            # ALWAYS read transactions from the Remittance sheet (it has the
+            # final processed/normalized data — correct DOCUMENT_NUMBER, etc.)
+            if not rem.empty:
                 r0 = rem.iloc[0]
-                # UTR column may be named differently across pipelines
                 utr_val = _str(r0.get("UTR_REFERENCE_NUMBER")) or _str(r0.get("UTR_REFERENCE_NUA")) or _str(r0.get("UTR_REFERENCE_NUM"))
                 header = {
                     "cust_name":   _str(r0.get("CUSTOMER_NAME")),
@@ -831,7 +776,6 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "import_ref":  _str(r0.get("IMPORT_REFERENCE", "")),
                     "cust_payment_id": _str(r0.get("CUST_PAYMENT_ID", "")),
                 }
-                transactions = []  # reset in case partially filled
                 for _, r in rem.iterrows():
                     transactions.append({
                         "doc_no":  _str(r.get("DOCUMENT_NUMBER")),
@@ -843,6 +787,33 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                         "net":     _float(r.get("AMOUNT")),
                         "status":  "pending",
                     })
+
+            # Enrich header from Raw_JSON only for fields missing in Remittance
+            if "Raw_JSON" in sheets:
+                try:
+                    rj = xl.parse("Raw_JSON")
+                    if not rj.empty and "full_json" in rj.columns:
+                        raw_json = json.loads(rj["full_json"].iloc[0])
+                        vouchers = raw_json.get("vouchers", [])
+                        if vouchers:
+                            h = vouchers[0].get("header", {})
+                            # Only fill header fields that are still empty
+                            if not header.get("cust_name"):
+                                header["cust_name"] = _str(h.get("CUSTOMER_NAME"))
+                            if not header.get("pay_amt"):
+                                header["pay_amt"] = _float(h.get("AMOUNT") or h.get("_computed_payment_amount") or h.get("PAYMENT_AMOUNT"))
+                            if not header.get("utr"):
+                                header["utr"] = _str(h.get("UTR_REFERENCE_NUMBER") or h.get("UTR_REFERENCE_NUA") or h.get("UTR_REFERENCE_NUM"))
+                            if not header.get("pay_dt"):
+                                header["pay_dt"] = _str(h.get("PAYMENT_DATE"))
+                            if not header.get("cust_code"):
+                                header["cust_code"] = _str(h.get("KOD_CUST_CODE"))
+                            if not header.get("mail_id"):
+                                header["mail_id"] = _str(h.get("MAIL_ID"))
+                            if not header.get("mail_dt"):
+                                header["mail_dt"] = _str(h.get("MAIL_RECEIVED_DATE")) or None
+                except Exception as je:
+                    log.warning("Raw_JSON parse failed: %s", je)
 
         # ── Format C: unknown — read first sheet generically ─────────────────
         else:
