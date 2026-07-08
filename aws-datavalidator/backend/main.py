@@ -1430,47 +1430,78 @@ class MultiCustomerApproveRequest(BaseModel):
 def multi_customer_approve(req: MultiCustomerApproveRequest):
     """
     Approve a single customer from a multi-customer file.
-    Sends one payload per customer to the downstream API.
+    Builds multi-customer payload (payment vs invoice split) and sends to downstream API.
     Saves to Approved/{input_stem}_{cust_no}.json
     """
     stem     = Path(req.input_key).stem
     cust     = req.customer
-    cust_no  = cust.get("cust_no", "").replace("/", "_").replace(" ", "_") or "unknown"
+    cust_no  = str(cust.get("cust_no", "")).replace("/", "_").replace(" ", "_") or "unknown"
+    cust_name = cust.get("cust_name", "")
     json_key = f"{APPROVED_PREFIX}{stem}_{cust_no}.json"
 
-    # Build single-customer payload for downstream API
-    # Extract a representative row for header fields
-    rows     = cust.get("rows", [])
-    first    = rows[0] if rows else {}
-    cust_name = cust.get("cust_name", "")
+    rows = cust.get("rows", [])
 
+    # Determine source type from file extension
+    input_ext = Path(req.input_key).suffix.lower()
+    if input_ext in (".xlsx", ".xls"):
+        src = "MULTI EXCEL"
+    elif input_ext in (".txt", ".csv"):
+        src = "MULTI TXT"
+    else:
+        src = "MULTI"
+
+    # Get mail_id and mail_received_date from rows (same for all)
+    first = rows[0] if rows else {}
+    mail_id = _str(first.get("MAIL_ID"))
+    mail_dt = _convert_date(first.get("MAIL_RECEIVED_DATE"))
+
+    # Build payload: hdr = common, dtl = payment OR invoice per row
     payload = {
-        "type":      "multi-customer-single",
-        "input_key": req.input_key,
         "hdr": {
-            "cust_no":     cust_no,
-            "cust_name":   cust_name,
-            "pay_dt":      _convert_date(first.get("TXN_DATE") or first.get("DOCUMENT_DATE")),
-            "pay_amt":     sum(_float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0) for r in rows),
-            "utr":         first.get("TRX_NUMBER") or first.get("UTR_REFERENCE_NUMBER") or "",
-            "src":         "MULTI",
-            "cust_code":   cust_no,
+            "src":              src,
+            "cust_name":        cust_name,
+            "cust_code":        cust_no,
+            "mail_id":          mail_id,
+            "mail_dt":          mail_dt,
+            "import_ref":       "",
+            "cust_payment_id":  "",
             "transaction_type": "INSERT",
         },
-        "dtl": [
-            {
-                "doc_no":  _str(r.get("TRX_NUMBER") or r.get("DOCUMENT_NUMBER")),
-                "doc_dt":  _convert_date(r.get("TXN_DATE") or r.get("DOCUMENT_DATE")),
-                "inv_amt": _float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0),
-                "tds":     _float(r.get("TDS") or 0),
-                "ded":     _float(r.get("DEDUCTION") or 0),
-                "disc":    _float(r.get("DISCOUNT") or 0),
-                "net":     _float(r.get("OUTSTANDING_AMT") or r.get("AMOUNT") or 0),
-            }
-            for r in rows
-            if r.get("_status") != "rejected"
-        ],
+        "dtl": [],
     }
+
+    for row in rows:
+        if row.get("_status") == "rejected":
+            continue
+        class_val = str(row.get("CLASS") or "").strip().upper()
+        is_payment = class_val in ("PMT", "PAYMENT")
+
+        if is_payment:
+            payload["dtl"].append({
+                "utr":     _str(row.get("TRX_NUMBER")),
+                "pay_dt":  _convert_date(row.get("TXN_DATE")),
+                "pay_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                "doc_no":  None,
+                "doc_dt":  None,
+                "inv_amt": None,
+                "tds":     None,
+                "ded":     None,
+                "disc":    None,
+                "net":     None,
+            })
+        else:
+            payload["dtl"].append({
+                "utr":     None,
+                "pay_dt":  None,
+                "pay_amt": None,
+                "doc_no":  _str(row.get("TRX_NUMBER")),
+                "doc_dt":  _convert_date(row.get("TXN_DATE")),
+                "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                "tds":     _float(row.get("TDS") or 0),
+                "ded":     _float(row.get("DEDUCTION") or row.get("REJECTION_SHORT") or 0),
+                "disc":    _float(row.get("DISCOUNT") or 0),
+                "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+            })
 
     try:
         s3_put(json_key, json.dumps(payload, indent=2, default=str).encode(),
@@ -1481,8 +1512,6 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
         raise
 
     log.info("Multi-customer approved: %s → %s", cust_name, json_key)
-
-    # Call downstream API
     api_result = call_customer_api(payload)
     log.info("Customer API result for %s: %s", cust_name, api_result)
 
@@ -1497,68 +1526,87 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
 def multi_approve(req: MultiApproveRequest):
     """
     Approve all customers in a multi-customer file.
-    Sends SEPARATE payloads per customer to downstream API.
-    Saves one JSON per customer to Approved/{input_stem}_{cust_no}.json
+    Sends SEPARATE payload per customer to downstream API.
     """
     stem    = Path(req.input_key).stem
     results = []
 
+    input_ext = Path(req.input_key).suffix.lower()
+    if input_ext in (".xlsx", ".xls"):
+        src = "MULTI EXCEL"
+    elif input_ext in (".txt", ".csv"):
+        src = "MULTI TXT"
+    else:
+        src = "MULTI"
+
     for cust in req.customers:
-        cust_no   = cust.get("cust_no", "").replace("/", "_").replace(" ", "_") or "unknown"
+        if cust.get("status") == "rejected":
+            results.append({"cust_no": cust.get("cust_no"), "cust_name": cust.get("cust_name"), "status": "skipped_rejected"})
+            continue
+
+        cust_no   = str(cust.get("cust_no", "")).replace("/", "_").replace(" ", "_") or "unknown"
         cust_name = cust.get("cust_name", "")
         json_key  = f"{APPROVED_PREFIX}{stem}_{cust_no}.json"
-
-        rows  = cust.get("rows", [])
-        first = rows[0] if rows else {}
+        rows      = cust.get("rows", [])
+        first     = rows[0] if rows else {}
+        mail_id   = _str(first.get("MAIL_ID"))
+        mail_dt   = _convert_date(first.get("MAIL_RECEIVED_DATE"))
 
         payload = {
-            "type":      "multi-customer-single",
-            "input_key": req.input_key,
             "hdr": {
-                "cust_no":     cust_no,
-                "cust_name":   cust_name,
-                "pay_dt":      _convert_date(first.get("TXN_DATE") or first.get("DOCUMENT_DATE")),
-                "pay_amt":     sum(_float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0) for r in rows),
-                "utr":         first.get("TRX_NUMBER") or first.get("UTR_REFERENCE_NUMBER") or "",
-                "src":         "MULTI",
-                "cust_code":   cust_no,
+                "src":              src,
+                "cust_name":        cust_name,
+                "cust_code":        cust_no,
+                "mail_id":          mail_id,
+                "mail_dt":          mail_dt,
+                "import_ref":       "",
+                "cust_payment_id":  "",
                 "transaction_type": "INSERT",
             },
-            "dtl": [
-                {
-                    "doc_no":  _str(r.get("TRX_NUMBER") or r.get("DOCUMENT_NUMBER")),
-                    "doc_dt":  _convert_date(r.get("TXN_DATE") or r.get("DOCUMENT_DATE")),
-                    "inv_amt": _float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0),
-                    "tds":     _float(r.get("TDS") or 0),
-                    "ded":     _float(r.get("DEDUCTION") or 0),
-                    "disc":    _float(r.get("DISCOUNT") or 0),
-                    "net":     _float(r.get("OUTSTANDING_AMT") or r.get("AMOUNT") or 0),
-                }
-                for r in rows
-                if r.get("_status") != "rejected"
-            ],
+            "dtl": [],
         }
 
+        for row in rows:
+            if row.get("_status") == "rejected":
+                continue
+            class_val = str(row.get("CLASS") or "").strip().upper()
+            is_payment = class_val in ("PMT", "PAYMENT")
+
+            if is_payment:
+                payload["dtl"].append({
+                    "utr":     _str(row.get("TRX_NUMBER")),
+                    "pay_dt":  _convert_date(row.get("TXN_DATE")),
+                    "pay_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                    "doc_no":  None,
+                    "doc_dt":  None,
+                    "inv_amt": None,
+                    "tds":     None,
+                    "ded":     None,
+                    "disc":    None,
+                    "net":     None,
+                })
+            else:
+                payload["dtl"].append({
+                    "utr":     None,
+                    "pay_dt":  None,
+                    "pay_amt": None,
+                    "doc_no":  _str(row.get("TRX_NUMBER")),
+                    "doc_dt":  _convert_date(row.get("TXN_DATE")),
+                    "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                    "tds":     _float(row.get("TDS") or 0),
+                    "ded":     _float(row.get("DEDUCTION") or row.get("REJECTION_SHORT") or 0),
+                    "disc":    _float(row.get("DISCOUNT") or 0),
+                    "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+                })
+
         try:
-            s3_put(json_key, json.dumps(payload, indent=2, default=str).encode(),
-                   "application/json")
+            s3_put(json_key, json.dumps(payload, indent=2, default=str).encode(), "application/json")
             api_result = call_customer_api(payload)
-            results.append({
-                "cust_no":    cust_no,
-                "cust_name":  cust_name,
-                "s3_key":     f"s3://{BUCKET}/{json_key}",
-                "api_result": api_result,
-            })
-            log.info("Multi-customer approved: %s → %s | API: %s",
-                     cust_name, json_key, api_result.get("status"))
+            results.append({"cust_no": cust_no, "cust_name": cust_name, "s3_key": f"s3://{BUCKET}/{json_key}", "api_result": api_result})
+            log.info("Multi-customer approved: %s → %s | API: %s", cust_name, json_key, api_result.get("status"))
         except HTTPException as exc:
             if exc.status_code == 503:
-                results.append({
-                    "cust_no":   cust_no,
-                    "cust_name": cust_name,
-                    "s3_key":    json_key,
-                    "demo_mode": True,
-                })
+                results.append({"cust_no": cust_no, "cust_name": cust_name, "s3_key": json_key, "demo_mode": True})
             else:
                 raise
 
