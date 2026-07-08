@@ -302,6 +302,7 @@ export default function DashboardPage() {
                       options={[
                         { value: 'PDF',   label: 'PDF'   },
                         { value: 'DOC',   label: 'DOC'   },
+                        { value: 'DOCX',  label: 'DOCX'  },
                         { value: 'EXCEL', label: 'EXCEL' },
                         { value: 'HTML',  label: 'HTML'  },
                         { value: 'TXT',   label: 'TXT'   },
