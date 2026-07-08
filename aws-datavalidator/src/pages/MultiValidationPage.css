@@ -138,7 +138,7 @@
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 7px;
-  overflow: hidden;
+  overflow: visible;
 }
 .mvp-cust-approved { border-color: #86efac; }
 .mvp-cust-rejected { border-color: #fca5a5; }
@@ -189,10 +189,12 @@
 
 /* ── Data table ──────────────────────────────────────────────────────────── */
 .mvp-tbl-wrap {
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 280px;
+  overflow-x: scroll;
+  overflow-y: scroll;
+  max-height: 350px;
   width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 .mvp-tbl {
   width: max-content;
