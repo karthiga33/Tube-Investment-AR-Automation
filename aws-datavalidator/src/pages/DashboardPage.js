@@ -141,11 +141,23 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const d = await api.dashboard();
+      const [d, multiData] = await Promise.all([
+        api.dashboard(),
+        api.listMultiOutput().catch(() => ({ files: [] })),
+      ]);
       const sorted = [...(d.output || [])].sort(
         (a, b) => new Date(b.last_modified) - new Date(a.last_modified)
       );
-      setFiles(sorted);
+      // Tag multi files and merge them in
+      const multiFiles = (multiData.files || []).map(f => ({
+        ...f,
+        status: 'pending',
+        _isMulti: true,
+      }));
+      const allFiles = [...sorted, ...multiFiles].sort(
+        (a, b) => new Date(b.last_modified) - new Date(a.last_modified)
+      );
+      setFiles(allFiles);
       setDeleted(d.deleted || []);
     } catch (e) {
       setError(e.message);
@@ -207,8 +219,15 @@ export default function DashboardPage() {
     }
   };
 
-  const openFile = (file) =>
-    navigate('/validate', { state: { fileKey: file.key, fileName: file.name, company: file.company, fileStatus: file.status } });
+  const openFile = (file) => {
+    // Files from multi-output/ folder go to the multi-customer validation page
+    const isMulti = file.key.startsWith('multi-output/') || file.name.toLowerCase().startsWith('multi');
+    if (isMulti) {
+      navigate('/multi-validate', { state: { fileKey: file.key, fileName: file.name } });
+    } else {
+      navigate('/validate', { state: { fileKey: file.key, fileName: file.name, company: file.company, fileStatus: file.status } });
+    }
+  };
 
   const statusBadge = (s) => {
     if (s === 'approved') return <span className="badge badge-green">Approved</span>;
@@ -350,6 +369,11 @@ export default function DashboardPage() {
                         <div className="file-name-cell">
                           <FileSpreadsheet size={14} className="icon-excel" />
                           <span className="file-name-text" title={file.name}>{file.name}</span>
+                          {file._isMulti && (
+                            <span style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: '4px', padding: '1px 6px', fontSize: '10px', fontWeight: 700, marginLeft: '4px' }}>
+                              MULTI
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="meta-cell">

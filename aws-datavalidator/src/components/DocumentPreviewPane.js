@@ -45,7 +45,7 @@ const PaymentAdviceDoc = ({ header }) => {
 
       <div className="pa-no-source">
         <span>📎</span>
-        <p>Source file not in emails/ folder</p>
+        <p>Source file not found</p>
         <span>Showing extracted data only</span>
       </div>
     </div>

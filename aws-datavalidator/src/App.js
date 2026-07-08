@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import TopNav from './components/TopNav';
 import DashboardPage from './pages/DashboardPage';
 import ValidationPage from './pages/ValidationPage';
+import MultiValidationPage from './pages/MultiValidationPage';
 import StatusPage from './pages/StatusPage';
 import AuthPage from './pages/AuthPage';
 import { getCurrentSession, signOut, getUserAttributes } from './auth';
@@ -60,10 +61,11 @@ function App() {
         <TopNav userName={userName} onLogout={handleLogout} />
         <div className="app-body">
           <Routes>
-            <Route path="/"           element={<DashboardPage />} />
-            <Route path="/validate"   element={<ValidationPage />} />
-            <Route path="/status"     element={<StatusPage />} />
-            <Route path="*"           element={<Navigate to="/" replace />} />
+            <Route path="/"                element={<DashboardPage />} />
+            <Route path="/validate"        element={<ValidationPage />} />
+            <Route path="/multi-validate"  element={<MultiValidationPage />} />
+            <Route path="/status"          element={<StatusPage />} />
+            <Route path="*"               element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </div>

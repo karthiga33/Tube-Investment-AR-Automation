@@ -1261,6 +1261,321 @@ def _demo_payload(key: str) -> Dict[str, Any]:
     }
 
 
+# ── Multi-Customer: list files from multi-output/ ─────────────────────────────
+MULTI_OUTPUT_PREFIX = os.getenv("S3_MULTI_OUTPUT_PREFIX", "multi-output/")
+MULTI_INPUT_PREFIX  = os.getenv("S3_MULTI_INPUT_PREFIX",  "multi-input/")
+
+@app.get("/api/files/multi-output", tags=["Multi"])
+def list_multi_output_files():
+    """Returns all .xlsx files in s3://claude-test-tube/multi-output/"""
+    items = s3_list(MULTI_OUTPUT_PREFIX)
+    result = []
+    for it in items:
+        name = it["name"]
+        stem = Path(name).stem
+        result.append({**it, "company": stem.replace("_", " "), "status": "pending"})
+    return {"files": result, "count": len(result)}
+
+
+@app.get("/api/file/multi-find-input", tags=["Multi"])
+def multi_find_input(output_key: str = Query(...)):
+    """
+    Given a multi-output key, find the matching source file in multi-input/
+    by stem matching. Returns presigned URL for inline preview.
+    """
+    stem = Path(output_key).stem.lower()
+
+    try:
+        items = s3_list(MULTI_INPUT_PREFIX)
+    except HTTPException:
+        return {"found": False}
+
+    best = None
+    for item in items:
+        item_stem = Path(item["name"]).stem.lower()
+        if item_stem == stem:
+            best = item
+            break
+        if item_stem.startswith(stem) or stem.startswith(item_stem):
+            best = item
+
+    if not best:
+        return {"found": False, "stem_searched": stem}
+
+    try:
+        url = s3().generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": BUCKET,
+                "Key": best["key"],
+                "ResponseContentDisposition": "inline",
+            },
+            ExpiresIn=900,
+        )
+        return {
+            "found": True,
+            "key":   best["key"],
+            "name":  best["name"],
+            "ext":   Path(best["name"]).suffix.lower().lstrip("."),
+            "url":   url,
+        }
+    except (NoCredentialsError, ClientError):
+        return {"found": False}
+
+
+@app.get("/api/file/multi-load", tags=["Multi"])
+def load_multi_file(key: str = Query(..., description="S3 key of multi-output XLSX")):
+    """
+    Read a multi-customer XLSX from multi-output/ and return grouped customers.
+    Each customer group has its own rows showing all columns as-is from the Excel.
+    """
+    stem = Path(key).stem
+    try:
+        raw = s3_get(key)
+    except HTTPException as exc:
+        if exc.status_code in (503, 404):
+            return {"input_key": key, "demo_mode": True, "customers": []}
+        raise
+
+    try:
+        xl   = pd.ExcelFile(io.BytesIO(raw))
+        df   = xl.parse(xl.sheet_names[0])
+        df.columns = [str(c).strip() for c in df.columns]
+
+        # Normalize column names — find CUST_NO and CUSTOMER_NAME
+        cust_no_col   = next((c for c in df.columns if c.upper() in ("CUST_NO", "CUST_NUMBER", "CUSTOMER_NO", "CUSTOMER_NUMBER")), None)
+        cust_name_col = next((c for c in df.columns if c.upper() in ("CUSTOMER_NAME", "CUST_NAME", "VENDOR_NAME")), None)
+
+        if not cust_no_col and not cust_name_col:
+            return {"input_key": key, "demo_mode": False, "customers": [], "error": "No customer identifier column found"}
+
+        group_col = cust_no_col or cust_name_col
+
+        # Convert all columns to string-safe values for JSON — handle NaN safely
+        import math
+        def safe_str(v):
+            if v is None:
+                return None
+            if isinstance(v, float):
+                if math.isnan(v) or math.isinf(v):
+                    return None
+                if v == int(v):
+                    return str(int(v))
+                return str(v)
+            return str(v)
+
+        df = df.where(pd.notnull(df), None)
+        for col in df.columns:
+            df[col] = df[col].apply(safe_str)
+
+        # Group rows by customer
+        customers = []
+        for group_key, group_df in df.groupby(group_col, sort=False):
+            first = group_df.iloc[0]
+            cust_name = _str(first.get(cust_name_col)) if cust_name_col else str(group_key)
+            cust_no   = _str(first.get(cust_no_col))   if cust_no_col   else ""
+            rows = group_df.to_dict(orient="records")
+            # Add status field to each row
+            for r in rows:
+                r["_status"] = "pending"
+            customers.append({
+                "cust_no":   cust_no,
+                "cust_name": cust_name,
+                "columns":   list(df.columns),
+                "rows":      rows,
+                "status":    "pending",   # overall customer status
+            })
+
+        return {"input_key": key, "demo_mode": False, "customers": customers}
+
+    except Exception as e:
+        log.warning("Multi-load failed for %s: %s", key, e)
+        raise HTTPException(422, f"Could not parse multi file: {str(e)}")
+
+
+class MultiApproveRequest(BaseModel):
+    input_key: str
+    customers: List[Dict]   # each: {cust_no, cust_name, status, rows:[...]}
+
+
+class MultiCustomerApproveRequest(BaseModel):
+    input_key:  str
+    customer:   Dict   # single customer: {cust_no, cust_name, status, rows:[...]}
+
+
+@app.post("/api/file/multi-customer-approve", tags=["Multi"])
+def multi_customer_approve(req: MultiCustomerApproveRequest):
+    """
+    Approve a single customer from a multi-customer file.
+    Sends one payload per customer to the downstream API.
+    Saves to Approved/{input_stem}_{cust_no}.json
+    """
+    stem     = Path(req.input_key).stem
+    cust     = req.customer
+    cust_no  = cust.get("cust_no", "").replace("/", "_").replace(" ", "_") or "unknown"
+    json_key = f"{APPROVED_PREFIX}{stem}_{cust_no}.json"
+
+    # Build single-customer payload for downstream API
+    # Extract a representative row for header fields
+    rows     = cust.get("rows", [])
+    first    = rows[0] if rows else {}
+    cust_name = cust.get("cust_name", "")
+
+    payload = {
+        "type":      "multi-customer-single",
+        "input_key": req.input_key,
+        "hdr": {
+            "cust_no":     cust_no,
+            "cust_name":   cust_name,
+            "pay_dt":      _convert_date(first.get("TXN_DATE") or first.get("DOCUMENT_DATE")),
+            "pay_amt":     sum(_float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0) for r in rows),
+            "utr":         first.get("TRX_NUMBER") or first.get("UTR_REFERENCE_NUMBER") or "",
+            "src":         "MULTI",
+            "cust_code":   cust_no,
+            "transaction_type": "INSERT",
+        },
+        "dtl": [
+            {
+                "doc_no":  _str(r.get("TRX_NUMBER") or r.get("DOCUMENT_NUMBER")),
+                "doc_dt":  _convert_date(r.get("TXN_DATE") or r.get("DOCUMENT_DATE")),
+                "inv_amt": _float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0),
+                "tds":     _float(r.get("TDS") or 0),
+                "ded":     _float(r.get("DEDUCTION") or 0),
+                "disc":    _float(r.get("DISCOUNT") or 0),
+                "net":     _float(r.get("OUTSTANDING_AMT") or r.get("AMOUNT") or 0),
+            }
+            for r in rows
+            if r.get("_status") != "rejected"
+        ],
+    }
+
+    try:
+        s3_put(json_key, json.dumps(payload, indent=2, default=str).encode(),
+               "application/json")
+    except HTTPException as exc:
+        if exc.status_code == 503:
+            return {"status": "success", "demo_mode": True, "s3_key": json_key}
+        raise
+
+    log.info("Multi-customer approved: %s → %s", cust_name, json_key)
+
+    # Call downstream API
+    api_result = call_customer_api(payload)
+    log.info("Customer API result for %s: %s", cust_name, api_result)
+
+    return {
+        "status":     "success",
+        "s3_key":     f"s3://{BUCKET}/{json_key}",
+        "api_result": api_result,
+    }
+
+
+@app.post("/api/file/multi-approve", tags=["Multi"])
+def multi_approve(req: MultiApproveRequest):
+    """
+    Approve all customers in a multi-customer file.
+    Sends SEPARATE payloads per customer to downstream API.
+    Saves one JSON per customer to Approved/{input_stem}_{cust_no}.json
+    """
+    stem    = Path(req.input_key).stem
+    results = []
+
+    for cust in req.customers:
+        cust_no   = cust.get("cust_no", "").replace("/", "_").replace(" ", "_") or "unknown"
+        cust_name = cust.get("cust_name", "")
+        json_key  = f"{APPROVED_PREFIX}{stem}_{cust_no}.json"
+
+        rows  = cust.get("rows", [])
+        first = rows[0] if rows else {}
+
+        payload = {
+            "type":      "multi-customer-single",
+            "input_key": req.input_key,
+            "hdr": {
+                "cust_no":     cust_no,
+                "cust_name":   cust_name,
+                "pay_dt":      _convert_date(first.get("TXN_DATE") or first.get("DOCUMENT_DATE")),
+                "pay_amt":     sum(_float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0) for r in rows),
+                "utr":         first.get("TRX_NUMBER") or first.get("UTR_REFERENCE_NUMBER") or "",
+                "src":         "MULTI",
+                "cust_code":   cust_no,
+                "transaction_type": "INSERT",
+            },
+            "dtl": [
+                {
+                    "doc_no":  _str(r.get("TRX_NUMBER") or r.get("DOCUMENT_NUMBER")),
+                    "doc_dt":  _convert_date(r.get("TXN_DATE") or r.get("DOCUMENT_DATE")),
+                    "inv_amt": _float(r.get("OUTSTANDING_AMT") or r.get("INVOICE_AMOUNT") or 0),
+                    "tds":     _float(r.get("TDS") or 0),
+                    "ded":     _float(r.get("DEDUCTION") or 0),
+                    "disc":    _float(r.get("DISCOUNT") or 0),
+                    "net":     _float(r.get("OUTSTANDING_AMT") or r.get("AMOUNT") or 0),
+                }
+                for r in rows
+                if r.get("_status") != "rejected"
+            ],
+        }
+
+        try:
+            s3_put(json_key, json.dumps(payload, indent=2, default=str).encode(),
+                   "application/json")
+            api_result = call_customer_api(payload)
+            results.append({
+                "cust_no":    cust_no,
+                "cust_name":  cust_name,
+                "s3_key":     f"s3://{BUCKET}/{json_key}",
+                "api_result": api_result,
+            })
+            log.info("Multi-customer approved: %s → %s | API: %s",
+                     cust_name, json_key, api_result.get("status"))
+        except HTTPException as exc:
+            if exc.status_code == 503:
+                results.append({
+                    "cust_no":   cust_no,
+                    "cust_name": cust_name,
+                    "s3_key":    json_key,
+                    "demo_mode": True,
+                })
+            else:
+                raise
+
+    _store.pop(req.input_key, None)
+    log.info("Multi-approve complete: %d customers", len(results))
+    return {"status": "success", "customers": results}
+
+
+@app.post("/api/file/multi-reject", tags=["Multi"])
+def multi_reject(req: MultiApproveRequest):
+    """Save rejected multi-customer data to Reject/ as XLSX."""
+    stem     = Path(req.input_key).stem
+    xlsx_key = f"{REJECT_PREFIX}{stem}_rejected.xlsx"
+
+    # Build flat Excel from all customer rows
+    all_rows = []
+    for cust in req.customers:
+        for row in cust.get("rows", []):
+            clean = {k: v for k, v in row.items() if not k.startswith("_")}
+            all_rows.append(clean)
+
+    buf = io.BytesIO()
+    if all_rows:
+        pd.DataFrame(all_rows).to_excel(buf, index=False)
+    else:
+        pd.DataFrame().to_excel(buf, index=False)
+    buf.seek(0)
+
+    try:
+        s3_put(xlsx_key, buf.read(),
+               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except HTTPException as exc:
+        if exc.status_code == 503:
+            return {"status": "success", "demo_mode": True, "s3_key": xlsx_key}
+        raise
+    _store.pop(req.input_key, None)
+    log.info("Multi-rejected %s → %s", stem, xlsx_key)
+    return {"status": "success", "s3_key": f"s3://{BUCKET}/{xlsx_key}"}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
