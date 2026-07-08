@@ -98,7 +98,7 @@
   border-right: 1px solid #e5e7eb;
 }
 .mvp-pane-left  { flex: 0 0 50%; }
-.mvp-pane-right { flex: 1; border-right: none; }
+.mvp-pane-right { flex: 1; border-right: none; overflow: hidden; }
 
 .mvp-pane-hdr {
   display: flex;
@@ -192,9 +192,11 @@
   overflow-x: auto;
   overflow-y: auto;
   max-height: 280px;
+  width: 100%;
 }
 .mvp-tbl {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
 }
