@@ -150,9 +150,16 @@ export default function DashboardPage() {
         ...f,
         _isMulti: true,
       }));
-      const allFiles = [...outputFiles, ...multiFiles].sort(
-        (a, b) => new Date(b.last_modified) - new Date(a.last_modified)
-      );
+      // Deduplicate: use key+company as unique identifier
+      const seen = new Set();
+      const allFiles = [...outputFiles, ...multiFiles]
+        .filter(f => {
+          const id = `${f.key}|${f.company || ''}`;
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        })
+        .sort((a, b) => new Date(b.last_modified) - new Date(a.last_modified));
       setFiles(allFiles);
       setDeleted(d.deleted || []);
     } catch (e) {
@@ -361,8 +368,8 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  visible.map(file => (
-                    <tr key={file.key} className={`file-row file-row-${file.status}`} onClick={() => openFile(file)}>
+                  visible.map((file, idx) => (
+                    <tr key={`${file.key}-${file.company}-${idx}`} className={`file-row file-row-${file.status}`} onClick={() => openFile(file)}>
                       <td>
                         <div className="file-name-cell">
                           <FileSpreadsheet size={14} className="icon-excel" />
