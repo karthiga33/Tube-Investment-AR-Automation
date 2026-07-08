@@ -1267,29 +1267,35 @@ MULTI_INPUT_PREFIX  = os.getenv("S3_MULTI_INPUT_PREFIX",  "multi-input/")
 
 @app.get("/api/files/multi-output", tags=["Multi"])
 def list_multi_output_files():
-    """Returns all .xlsx files in s3://claude-test-tube/multi-output/ with customer names."""
+    """
+    Returns multi-output files split by customer.
+    One file with 4 customers → 4 entries in the list, each with its own customer name.
+    """
     items = s3_list(MULTI_OUTPUT_PREFIX)
     result = []
     for it in items:
         name = it["name"]
-        stem = Path(name).stem
         # Try to read customer names from the Excel
-        company = stem.replace("_", " ")
         try:
             raw = s3_get(it["key"])
-            df = pd.read_excel(io.BytesIO(raw), nrows=50)
+            df = pd.read_excel(io.BytesIO(raw), nrows=200)
             df.columns = [str(c).strip() for c in df.columns]
             cust_col = next((c for c in df.columns if c.upper() in ("CUSTOMER_NAME", "CUST_NAME", "VENDOR_NAME")), None)
             if cust_col and not df.empty:
                 names = df[cust_col].dropna().unique()
                 names = [str(n).strip() for n in names if str(n).strip()]
                 if names:
-                    company = ", ".join(names[:5])  # show up to 5 customer names
-                    if len(names) > 5:
-                        company += f" +{len(names)-5} more"
+                    for cust_name in names:
+                        result.append({
+                            **it,
+                            "company": cust_name,
+                            "status": "pending",
+                        })
+                    continue
         except Exception:
             pass
-        result.append({**it, "company": company, "status": "pending"})
+        # Fallback — show file stem as company
+        result.append({**it, "company": Path(name).stem.replace("_", " "), "status": "pending"})
     return {"files": result, "count": len(result)}
 
 
