@@ -305,6 +305,7 @@ export default function DashboardPage() {
                         { value: 'EXCEL', label: 'EXCEL' },
                         { value: 'HTML',  label: 'HTML'  },
                         { value: 'TXT',   label: 'TXT'   },
+                        { value: 'MULTI', label: 'MULTI' },
                       ]}
                       value={filters.fileType}
                       onChange={v => setFilter('fileType', v)}

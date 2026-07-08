@@ -1290,12 +1290,13 @@ def list_multi_output_files():
                             **it,
                             "company": cust_name,
                             "status": "pending",
+                            "source_type": "MULTI",
                         })
                     continue
         except Exception:
             pass
         # Fallback — show file stem as company
-        result.append({**it, "company": Path(name).stem.replace("_", " "), "status": "pending"})
+        result.append({**it, "company": Path(name).stem.replace("_", " "), "status": "pending", "source_type": "MULTI"})
     return {"files": result, "count": len(result)}
 
 
