@@ -221,7 +221,7 @@ export default function DashboardPage() {
 
   const openFile = (file) => {
     // Files from multi-output/ folder go to the multi-customer validation page
-    const isMulti = file.key.startsWith('multi-output/') || file.name.toLowerCase().startsWith('multi');
+    const isMulti = file._isMulti === true;
     if (isMulti) {
       navigate('/multi-validate', { state: { fileKey: file.key, fileName: file.name } });
     } else {
