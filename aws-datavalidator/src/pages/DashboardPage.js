@@ -145,16 +145,12 @@ export default function DashboardPage() {
         api.dashboard(),
         api.listMultiOutput().catch(() => ({ files: [] })),
       ]);
-      const sorted = [...(d.output || [])].sort(
-        (a, b) => new Date(b.last_modified) - new Date(a.last_modified)
-      );
-      // Tag multi files and merge them in
+      const outputFiles = (d.output || []).map(f => ({ ...f, _isMulti: false }));
       const multiFiles = (multiData.files || []).map(f => ({
         ...f,
-        status: 'pending',
         _isMulti: true,
       }));
-      const allFiles = [...sorted, ...multiFiles].sort(
+      const allFiles = [...outputFiles, ...multiFiles].sort(
         (a, b) => new Date(b.last_modified) - new Date(a.last_modified)
       );
       setFiles(allFiles);
