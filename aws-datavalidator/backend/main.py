@@ -1393,20 +1393,47 @@ def load_multi_file(key: str = Query(..., description="S3 key of multi-output XL
 
         # Group rows by customer
         customers = []
+        stem = Path(key).stem
+        # Check which customers are already approved/rejected
+        approved_keys = set()
+        rejected_keys = set()
+        try:
+            for item in s3_list(APPROVED_PREFIX):
+                approved_keys.add(item["name"].replace(".json", "").lower())
+        except Exception:
+            pass
+        try:
+            for item in s3_list(REJECT_PREFIX):
+                rejected_keys.add(item["name"].replace("_rejected.xlsx", "").lower())
+        except Exception:
+            pass
+
         for group_key, group_df in df.groupby(group_col, sort=False):
             first = group_df.iloc[0]
             cust_name = _str(first.get(cust_name_col)) if cust_name_col else str(group_key)
             cust_no   = _str(first.get(cust_no_col))   if cust_no_col   else ""
             rows = group_df.to_dict(orient="records")
-            # Add status field to each row
+
+            # Check if this customer was already approved/rejected
+            cust_key = f"{stem}_{cust_no}".replace("/", "_").replace(" ", "_").lower()
+            if cust_key in approved_keys:
+                cust_status = "approved"
+                row_status  = "approved"
+            elif cust_key in rejected_keys:
+                cust_status = "rejected"
+                row_status  = "rejected"
+            else:
+                cust_status = "pending"
+                row_status  = "pending"
+
             for r in rows:
-                r["_status"] = "pending"
+                r["_status"] = row_status
             customers.append({
                 "cust_no":   cust_no,
                 "cust_name": cust_name,
                 "columns":   list(df.columns),
                 "rows":      rows,
-                "status":    "pending",   # overall customer status
+                "status":    cust_status,
             })
 
         return {"input_key": key, "demo_mode": False, "customers": customers}
