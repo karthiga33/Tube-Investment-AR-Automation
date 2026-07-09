@@ -328,6 +328,7 @@ export default function DashboardPage() {
                       active={filters.company !== ''}
                     />
                   </th>
+                  <th className="plain-th">Mail ID</th>
                   <th className="plain-th">Size</th>
                   {/* Last Modified */}
                   <th>
@@ -362,7 +363,7 @@ export default function DashboardPage() {
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="no-results">
+                    <td colSpan={8} className="no-results">
                       No files match the current filters.&nbsp;
                       <button className="btn-clear-inline" onClick={clearAll}>Clear filters</button>
                     </td>
@@ -387,6 +388,7 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td className="company-cell">{file.company}</td>
+                      <td className="meta-cell">{file.mail_id || '—'}</td>
                       <td className="meta-cell">{fmtSize(file.size)}</td>
                       <td className="meta-cell">{fmt(file.last_modified)}</td>
                       <td>{statusBadge(file.status)}</td>

@@ -607,12 +607,15 @@ def dashboard_summary():
         clean_stem = raw_stem.replace("_extracted", "") # MAHAVIR
         company    = clean_stem.replace("_", " ")
         source_type = "PDF"  # default source type
+        mail_id    = ""      # default mail_id
         # Priority 1: in-memory cache (user opened the file)
         cached = _store.get(f["key"])
         if cached and cached.get("header", {}).get("cust_name"):
             company = cached["header"]["cust_name"]
         if cached and cached.get("header", {}).get("src"):
             source_type = cached["header"]["src"]
+        if cached and cached.get("header", {}).get("mail_id"):
+            mail_id = cached["header"]["mail_id"]
         # Priority 2: approved JSON (has vendor name from previous approval)
         elif clean_stem.lower() in vendor_names:
             company = vendor_names[clean_stem.lower()]
@@ -633,6 +636,10 @@ def dashboard_summary():
                         src_val = _str(rem.iloc[0].get("SOURCE_TYPE"))
                         if src_val:
                             source_type = src_val
+                    if not rem.empty and "MAIL_ID" in rem.columns:
+                        mid = _str(rem.iloc[0].get("MAIL_ID"))
+                        if mid:
+                            mail_id = mid
                 elif "Header" in sheets:
                     hdr = xl.parse("Header", nrows=1)
                     if not hdr.empty and "VENDOR_NAME" in hdr.columns:
@@ -643,6 +650,10 @@ def dashboard_summary():
                         src_val = _str(hdr.iloc[0].get("SOURCE"))
                         if src_val:
                             source_type = src_val
+                    if not hdr.empty and "MAIL_ID" in hdr.columns:
+                        mid = _str(hdr.iloc[0].get("MAIL_ID"))
+                        if mid:
+                            mail_id = mid
                 else:
                     df = xl.parse(sheets[0], nrows=1)
                     df.columns = [str(c).strip() for c in df.columns]
@@ -658,11 +669,17 @@ def dashboard_summary():
                             if src_val:
                                 source_type = src_val
                                 break
+                    for col_name in ["MAIL_ID", "mail_id"]:
+                        if col_name in df.columns and not df.empty:
+                            mid = _str(df.iloc[0].get(col_name))
+                            if mid:
+                                mail_id = mid
+                                break
             except Exception:
                 pass
         entry      = status_map.get(clean_stem.lower())
         file_status = entry["status"] if entry else "pending"
-        enriched.append({**f, "company": company, "status": file_status, "source_type": source_type})
+        enriched.append({**f, "company": company, "status": file_status, "source_type": source_type, "mail_id": mail_id})
 
     return {
         "output":   enriched,
