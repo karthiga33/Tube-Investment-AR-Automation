@@ -334,6 +334,8 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, on
   // Table fields (per row)
   const TABLE_FIELDS = (cust.columns || []).filter(c => !c.startsWith('_') && !HEADER_FIELDS.includes(c));
 
+  const isLocked = cust.status === 'approved' || cust.status === 'rejected';
+
   const blockClass = cust.status === 'approved'
     ? 'mvp-cust-block mvp-cust-approved'
     : cust.status === 'rejected'
@@ -356,9 +358,13 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, on
           {cust.status === 'rejected' && (
             <span className="mvp-status-pill mvp-status-rejected"><XCircle size={12}/> Rejected</span>
           )}
-          <button className="mvp-btn-approve-cust" onClick={onApprove}>✓ Approve</button>
-          <button className="mvp-btn-select" onClick={onSelectAll}>Select All</button>
-          <button className="mvp-btn-reject-cust" onClick={onReject}>✕ Reject</button>
+          {!isLocked && (
+            <>
+              <button className="mvp-btn-approve-cust" onClick={onApprove}>✓ Approve</button>
+              <button className="mvp-btn-select" onClick={onSelectAll}>Select All</button>
+              <button className="mvp-btn-reject-cust" onClick={onReject}>✕ Reject</button>
+            </>
+          )}
         </div>
       </div>
 
@@ -371,7 +377,7 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, on
               <span className="mvp-hdr-label">{field.replace(/_/g, ' ')}</span>
               <InlineEdit
                 value={val}
-                onSave={onUpdateHeader ? (v) => onUpdateHeader(field, v) : null}
+                onSave={!isLocked && onUpdateHeader ? (v) => onUpdateHeader(field, v) : null}
               />
             </div>
           );
@@ -385,7 +391,7 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, on
             <tr>
               <th className="mvp-th-num">#</th>
               {TABLE_FIELDS.map(col => <th key={col}>{col}</th>)}
-              <th className="mvp-th-status">STATUS</th>
+              {!isLocked && <th className="mvp-th-status">STATUS</th>}
             </tr>
           </thead>
           <tbody>
@@ -402,25 +408,27 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, on
                       <InlineEdit
                         value={row[col]}
                         numeric={isNumeric}
-                        onSave={onUpdateCell ? (v) => onUpdateCell(ri, col, v) : null}
+                        onSave={!isLocked && onUpdateCell ? (v) => onUpdateCell(ri, col, v) : null}
                       />
                     </td>
                   );
                 })}
-                <td className="mvp-td-status">
-                  <div className="mvp-row-btns">
-                    <button
-                      className={`mvp-row-approve ${row._status === 'approved' ? 'mvp-row-btn-active-green' : ''}`}
-                      onClick={() => onRowStatus(ri, 'approved')}
-                      title="Approve"
-                    >✓</button>
-                    <button
-                      className={`mvp-row-reject ${row._status === 'rejected' ? 'mvp-row-btn-active-red' : ''}`}
-                      onClick={() => onRowStatus(ri, 'rejected')}
-                      title="Reject"
-                    >✕</button>
-                  </div>
-                </td>
+                {!isLocked && (
+                  <td className="mvp-td-status">
+                    <div className="mvp-row-btns">
+                      <button
+                        className={`mvp-row-approve ${row._status === 'approved' ? 'mvp-row-btn-active-green' : ''}`}
+                        onClick={() => onRowStatus(ri, 'approved')}
+                        title="Approve"
+                      >✓</button>
+                      <button
+                        className={`mvp-row-reject ${row._status === 'rejected' ? 'mvp-row-btn-active-red' : ''}`}
+                        onClick={() => onRowStatus(ri, 'rejected')}
+                        title="Reject"
+                      >✕</button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
