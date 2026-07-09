@@ -86,6 +86,27 @@ export default function MultiValidationPage() {
     }));
   };
 
+  // Update a header field (applies to all rows of that customer)
+  const updateHeaderField = (custIdx, field, value) => {
+    setCustomers(prev => prev.map((c, i) => {
+      if (i !== custIdx) return c;
+      const newRows = c.rows.map(r => ({ ...r, [field]: value }));
+      const patch = { rows: newRows };
+      if (field === 'CUSTOMER_NAME') patch.cust_name = value;
+      if (field === 'CUST_NO') patch.cust_no = value;
+      return { ...c, ...patch };
+    }));
+  };
+
+  // Update a cell in a specific row
+  const updateCell = (custIdx, rowIdx, field, value) => {
+    setCustomers(prev => prev.map((c, i) => {
+      if (i !== custIdx) return c;
+      const newRows = c.rows.map((r, ri) => ri === rowIdx ? { ...r, [field]: value } : r);
+      return { ...c, rows: newRows };
+    }));
+  };
+
   // ── Global approve / reject ───────────────────────────────────────────────
   const handleApproveAll = async () => {
     const pending = customers.filter(c => c.status === 'pending').length;
@@ -119,11 +140,12 @@ export default function MultiValidationPage() {
       rows: cust.rows.map(r => ({ ...r, _status: 'approved' })),
     };
     updateCustomer(idx, approved);
+    console.log('Sending multi-customer-approve for:', cust.cust_name, 'fileKey:', fileKey);
     try {
-      const result = await api.multiCustomerApprove({
-        input_key: fileKey,
-        customer:  stripMeta([approved])[0],
-      });
+      const payload = { input_key: fileKey, customer: stripMeta([approved])[0] };
+      console.log('Payload:', JSON.stringify(payload).substring(0, 500));
+      const result = await api.multiCustomerApprove(payload);
+      console.log('API result:', result);
       const apiStatus = result.api_result?.status;
       showToast(
         apiStatus === 'success'
@@ -134,6 +156,7 @@ export default function MultiValidationPage() {
         apiStatus === 'success' || apiStatus === 'skipped' ? 'success' : 'warn'
       );
     } catch (e) {
+      console.error('Approve error:', e);
       showToast(`Approve failed: ${e.message}`, 'error');
     }
   };
@@ -252,6 +275,8 @@ export default function MultiValidationPage() {
                     onSelectAll={() => selectAllCustomer(idx)}
                     onReject={() => rejectCustomer(idx)}
                     onRowStatus={(rowIdx, status) => setRowStatus(idx, rowIdx, status)}
+                    onUpdateHeader={(field, value) => updateHeaderField(idx, field, value)}
+                    onUpdateCell={(rowIdx, field, value) => updateCell(idx, rowIdx, field, value)}
                   />
                 ))}
               </div>
@@ -268,9 +293,46 @@ export default function MultiValidationPage() {
   );
 }
 
+// ── Inline editable cell ──────────────────────────────────────────────────────
+function InlineEdit({ value, onSave, numeric }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft,   setDraft]   = React.useState('');
+  const ref = React.useRef(null);
+
+  const start = () => { if (!onSave) return; setDraft(String(value ?? '')); setEditing(true); };
+  const commit = () => { setEditing(false); const v = draft.trim(); if (v !== String(value ?? '')) onSave(numeric ? (parseFloat(v) || 0) : v); };
+  const cancel = () => setEditing(false);
+  React.useEffect(() => { if (editing && ref.current) ref.current.select(); }, [editing]);
+
+  const display = numeric && value != null && value !== '' && Number(value) !== 0
+    ? Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+    : (value || '—');
+
+  if (editing) {
+    return (
+      <input
+        ref={ref}
+        className="mvp-edit-input"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
+      />
+    );
+  }
+  return (
+    <span className={`mvp-edit-val ${onSave ? 'mvp-editable' : ''}`} onClick={start} title={onSave ? "Click to edit" : ""}>
+      {display} {onSave && <span className="mvp-pencil">✎</span>}
+    </span>
+  );
+}
+
 // ── Single customer block ─────────────────────────────────────────────────────
-function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus }) {
-  const cols = (cust.columns || []).filter(c => !c.startsWith('_'));
+function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, onUpdateHeader, onUpdateCell }) {
+  // Header fields (common per customer)
+  const HEADER_FIELDS = ['CUST_NO', 'CUSTOMER_NAME', 'MAIL_ID', 'MAIL_RECEIVED_DATE'];
+  // Table fields (per row)
+  const TABLE_FIELDS = (cust.columns || []).filter(c => !c.startsWith('_') && !HEADER_FIELDS.includes(c));
 
   const blockClass = cust.status === 'approved'
     ? 'mvp-cust-block mvp-cust-approved'
@@ -280,47 +342,49 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus }) 
 
   return (
     <div className={blockClass}>
-      {/* Customer header row */}
+      {/* Customer title + buttons */}
       <div className="mvp-cust-header">
         <div className="mvp-cust-info">
-          {cust.cust_no && (
-            <span className="mvp-cust-no">#{cust.cust_no}</span>
-          )}
+          {cust.cust_no && <span className="mvp-cust-no">#{cust.cust_no}</span>}
           <span className="mvp-cust-name">{cust.cust_name}</span>
-          <span className="mvp-cust-count">
-            {cust.rows.length} row{cust.rows.length !== 1 ? 's' : ''}
-          </span>
+          <span className="mvp-cust-count">{cust.rows.length} row{cust.rows.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="mvp-cust-btns">
           {cust.status === 'approved' && (
-            <span className="mvp-status-pill mvp-status-approved">
-              <CheckCircle2 size={12}/> Approved
-            </span>
+            <span className="mvp-status-pill mvp-status-approved"><CheckCircle2 size={12}/> Approved</span>
           )}
           {cust.status === 'rejected' && (
-            <span className="mvp-status-pill mvp-status-rejected">
-              <XCircle size={12}/> Rejected
-            </span>
+            <span className="mvp-status-pill mvp-status-rejected"><XCircle size={12}/> Rejected</span>
           )}
-          <button className="mvp-btn-approve-cust" onClick={onApprove}>
-            ✓ Approve
-          </button>
-          <button className="mvp-btn-select" onClick={onSelectAll}>
-            Select All
-          </button>
-          <button className="mvp-btn-reject-cust" onClick={onReject}>
-            ✕ Reject
-          </button>
+          <button className="mvp-btn-approve-cust" onClick={onApprove}>✓ Approve</button>
+          <button className="mvp-btn-select" onClick={onSelectAll}>Select All</button>
+          <button className="mvp-btn-reject-cust" onClick={onReject}>✕ Reject</button>
         </div>
       </div>
 
-      {/* Data table */}
+      {/* Editable header box */}
+      <div className="mvp-cust-hdr-box">
+        {HEADER_FIELDS.map(field => {
+          const val = cust.rows[0]?.[field] ?? '';
+          return (
+            <div key={field} className="mvp-hdr-field">
+              <span className="mvp-hdr-label">{field.replace(/_/g, ' ')}</span>
+              <InlineEdit
+                value={val}
+                onSave={onUpdateHeader ? (v) => onUpdateHeader(field, v) : null}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Editable data table */}
       <div className="mvp-tbl-wrap">
         <table className="mvp-tbl">
           <thead>
             <tr>
               <th className="mvp-th-num">#</th>
-              {cols.map(col => <th key={col}>{col}</th>)}
+              {TABLE_FIELDS.map(col => <th key={col}>{col}</th>)}
               <th className="mvp-th-status">STATUS</th>
             </tr>
           </thead>
@@ -331,9 +395,18 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus }) 
                 row._status === 'rejected' ? 'mvp-row-rejected' : ''
               }>
                 <td className="mvp-td-num">{ri + 1}</td>
-                {cols.map(col => (
-                  <td key={col}>{row[col] ?? '—'}</td>
-                ))}
+                {TABLE_FIELDS.map(col => {
+                  const isNumeric = ['OUTSTANDING_AMT', 'TDS', 'APPLIED_AMT', 'PAID'].includes(col);
+                  return (
+                    <td key={col}>
+                      <InlineEdit
+                        value={row[col]}
+                        numeric={isNumeric}
+                        onSave={onUpdateCell ? (v) => onUpdateCell(ri, col, v) : null}
+                      />
+                    </td>
+                  );
+                })}
                 <td className="mvp-td-status">
                   <div className="mvp-row-btns">
                     <button

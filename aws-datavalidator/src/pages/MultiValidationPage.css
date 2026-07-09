@@ -289,3 +289,64 @@
   padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
 }
 .mvp-btn-approve-cust:hover { background: #15803d; }
+
+/* ── Editable header box ────────────────────────────────────────────────── */
+.mvp-cust-hdr-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fafbfc;
+  border-bottom: 1px solid #e5e7eb;
+}
+.mvp-hdr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+}
+.mvp-hdr-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ── Inline edit ────────────────────────────────────────────────────────── */
+.mvp-edit-val {
+  font-size: 12px;
+  color: #111827;
+  cursor: default;
+  padding: 2px 4px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mvp-editable {
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.mvp-editable:hover {
+  background: #e0f2fe;
+  border-color: #93c5fd;
+}
+.mvp-pencil {
+  font-size: 10px;
+  color: #9ca3af;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.mvp-editable:hover .mvp-pencil { opacity: 1; }
+
+.mvp-edit-input {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid #3b82f6;
+  border-radius: 3px;
+  outline: none;
+  min-width: 80px;
+  max-width: 200px;
+  background: #fff;
+}
