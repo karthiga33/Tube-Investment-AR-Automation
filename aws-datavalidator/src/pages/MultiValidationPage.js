@@ -329,10 +329,11 @@ function InlineEdit({ value, onSave, numeric }) {
 
 // ── Single customer block ─────────────────────────────────────────────────────
 function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, onUpdateHeader, onUpdateCell }) {
-  // Header fields (common per customer)
+  // Header fields (common per customer) — shown only in header box, not in table
   const HEADER_FIELDS = ['CUST_NO', 'CUSTOMER_NAME', 'MAIL_ID', 'MAIL_RECEIVED_DATE'];
-  // Table fields (per row)
-  const TABLE_FIELDS = (cust.columns || []).filter(c => !c.startsWith('_') && !HEADER_FIELDS.includes(c));
+  // Table fields (per row) — exclude header fields (case-insensitive)
+  const headerUpper = HEADER_FIELDS.map(f => f.toUpperCase());
+  const TABLE_FIELDS = (cust.columns || []).filter(c => !c.startsWith('_') && !headerUpper.includes(c.toUpperCase()));
 
   const isLocked = cust.status === 'approved' || cust.status === 'rejected';
 
