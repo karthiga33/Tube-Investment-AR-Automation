@@ -369,9 +369,9 @@ function CustomerBlock({ cust, onApprove, onSelectAll, onReject, onRowStatus, on
         </div>
       </div>
 
-      {/* Editable header box */}
+      {/* Editable header box — only fields not shown in title bar */}
       <div className="mvp-cust-hdr-box">
-        {HEADER_FIELDS.map(field => {
+        {['MAIL_ID', 'MAIL_RECEIVED_DATE'].map(field => {
           const val = cust.rows[0]?.[field] ?? '';
           return (
             <div key={field} className="mvp-hdr-field">
