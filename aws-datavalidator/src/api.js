@@ -36,4 +36,7 @@ export const api = {
   multiCustomerApprove:     (body)    => req("/api/file/multi-customer-approve", { method: "POST", body: JSON.stringify(body) }),
   multiRejectFile:          (body)    => req("/api/file/multi-reject",           { method: "POST", body: JSON.stringify(body) }),
   multiFindInput:           (outKey)  => req(`/api/file/multi-find-input?output_key=${encodeURIComponent(outKey)}`),
+
+  // ── Rejected Emails ────────────────────────────────────────────────────────
+  listRejectedEmails:       ()        => req("/api/rejected-emails"),
 };

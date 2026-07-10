@@ -6,8 +6,9 @@ const TopNav = ({ userName, onLogout }) => {
   return (
     <header className="topnav">
       <nav className="topnav-links">
-        <NavLink to="/"       className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Documents</NavLink>
-        <NavLink to="/status" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Email</NavLink>
+        <NavLink to="/"                className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Documents</NavLink>
+        <NavLink to="/status"          className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Email</NavLink>
+        <NavLink to="/rejected-emails" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Rejected Emails</NavLink>
       </nav>
       <div className="topnav-brand">AR Automation</div>
       <div className="topnav-right">

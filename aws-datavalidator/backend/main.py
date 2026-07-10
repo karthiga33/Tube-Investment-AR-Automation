@@ -1697,6 +1697,41 @@ def multi_reject(req: MultiApproveRequest):
     return {"status": "success", "s3_key": f"s3://{BUCKET}/{xlsx_key}"}
 
 
+# ── Rejected Emails (from DynamoDB rejected_files table) ──────────────────────
+REJECTED_FILES_TABLE = os.getenv("REJECTED_FILES_TABLE", "rejected_files")
+
+@app.get("/api/rejected-emails", tags=["Rejected"])
+def list_rejected_emails():
+    """
+    Scan the rejected_files DynamoDB table and return all entries.
+    These are files rejected at Lambda level (e.g., duplicate ETag).
+    """
+    try:
+        dynamodb_resource = boto3.resource("dynamodb", region_name=REGION)
+        table = dynamodb_resource.Table(REJECTED_FILES_TABLE)
+        response = table.scan()
+        items = response.get("Items", [])
+        # Handle pagination
+        while "LastEvaluatedKey" in response:
+            response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
+            items.extend(response.get("Items", []))
+        # Convert Decimal to float for JSON serialization
+        from decimal import Decimal
+        def convert(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
+        clean_items = []
+        for item in items:
+            clean_items.append({k: convert(v) for k, v in item.items()})
+        # Sort by rejected_at descending
+        clean_items.sort(key=lambda x: x.get("rejected_at", ""), reverse=True)
+        return {"items": clean_items, "count": len(clean_items)}
+    except Exception as e:
+        log.warning("Failed to scan rejected_files table: %s", e)
+        return {"items": [], "count": 0, "error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
