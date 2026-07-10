@@ -608,8 +608,8 @@ def dashboard_summary():
         company    = clean_stem.replace("_", " ")
         source_type = "PDF"  # default source type
         mail_id    = ""      # default mail_id
-        # Priority 1: in-memory cache (user opened the file)
-        cached = _store.get(f["key"])
+        # Priority 1: read from Excel directly (no cache)
+        cached = None
         if cached and cached.get("header", {}).get("cust_name"):
             company = cached["header"]["cust_name"]
         if cached and cached.get("header", {}).get("src"):
@@ -716,10 +716,10 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
     """
     stem = Path(key).stem.replace("_extracted", "")
 
-    # Check in-memory store first
-    if key in _store:
-        _cw_log(stem, f"LOAD (cached) {key}")
-        return {"input_key": key, **_store[key]}
+    # Check in-memory store first — DISABLED (always read fresh from S3)
+    # if key in _store:
+    #     _cw_log(stem, f"LOAD (cached) {key}")
+    #     return {"input_key": key, **_store[key]}
 
     _cw_log(stem, f"LOAD started → reading from S3: {key}")
 
@@ -886,7 +886,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     })
 
         payload = {"header": header, "transactions": transactions}
-        _store[key] = payload
+        # _store[key] = payload  # DISABLED — no caching, always read fresh from S3
         _cw_log(stem, f"LOAD complete — {len(transactions)} transactions | "
                       f"vendor={header.get('cust_name')} utr={header.get('utr')} "
                       f"pay_amt={header.get('pay_amt')} mail_id={header.get('mail_id')}")
@@ -1292,12 +1292,17 @@ def list_multi_output_files():
     result = []
     for it in items:
         name = it["name"]
-        # Try to read customer names from the Excel
+        # Try to read customer names and mail_id from the Excel
         try:
             raw = s3_get(it["key"])
             df = pd.read_excel(io.BytesIO(raw), nrows=200)
             df.columns = [str(c).strip() for c in df.columns]
             cust_col = next((c for c in df.columns if c.upper() in ("CUSTOMER_NAME", "CUST_NAME", "VENDOR_NAME")), None)
+            mail_col = next((c for c in df.columns if c.upper() in ("MAIL_ID", "EMAIL", "MAIL")), None)
+            mail_id  = ""
+            if mail_col and not df.empty:
+                mail_val = df[mail_col].dropna().unique()
+                mail_id  = str(mail_val[0]).strip() if len(mail_val) > 0 else ""
             if cust_col and not df.empty:
                 names = df[cust_col].dropna().unique()
                 names = [str(n).strip() for n in names if str(n).strip()]
@@ -1308,12 +1313,13 @@ def list_multi_output_files():
                             "company": cust_name,
                             "status": "pending",
                             "source_type": "MULTI",
+                            "mail_id": mail_id,
                         })
                     continue
         except Exception:
             pass
         # Fallback — show file stem as company
-        result.append({**it, "company": Path(name).stem.replace("_", " "), "status": "pending", "source_type": "MULTI"})
+        result.append({**it, "company": Path(name).stem.replace("_", " "), "status": "pending", "source_type": "MULTI", "mail_id": ""})
     return {"files": result, "count": len(result)}
 
 
