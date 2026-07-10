@@ -98,7 +98,7 @@ export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, he
           const workbook = XLSX.read(buffer, { type: 'array' });
           const sheets = {};
           workbook.SheetNames.forEach(name => {
-            sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1 });
+            sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' });
           });
           setExcelData(sheets);
           setExcelSheets(workbook.SheetNames);
