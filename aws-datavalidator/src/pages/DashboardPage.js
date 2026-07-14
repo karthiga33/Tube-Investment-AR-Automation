@@ -123,6 +123,7 @@ function ColFilter({ label, type, options, value, onChange, onClear, active }) {
 const DEFAULT_FILTERS = {
   name:          '',
   company:       '',
+  mailId:        '',
   fileType:      [],            // [] = show all
   status:        [],           // [] = show all
   last_modified: { from: '', to: '' },
@@ -180,6 +181,7 @@ export default function DashboardPage() {
   const visible = files.filter(f => {
     if (filters.name && !f.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
     if (filters.company && !f.company.toLowerCase().includes(filters.company.toLowerCase())) return false;
+    if (filters.mailId && !(f.mail_id || '').toLowerCase().includes(filters.mailId.toLowerCase())) return false;
     if (filters.fileType.length > 0 && !filters.fileType.includes(getFileType(f.source_type))) return false;
     if (filters.status.length > 0 && !filters.status.includes(f.status)) return false;
     if (filters.last_modified.from) {
@@ -197,6 +199,7 @@ export default function DashboardPage() {
   const anyActive =
     filters.name !== '' ||
     filters.company !== '' ||
+    filters.mailId !== '' ||
     filters.fileType.length > 0 ||
     filters.status.length > 0 ||
     filters.last_modified.from !== '' ||
@@ -328,7 +331,16 @@ export default function DashboardPage() {
                       active={filters.company !== ''}
                     />
                   </th>
-                  <th className="plain-th">Mail ID</th>
+                  <th>
+                    <ColFilter
+                      label="Mail ID"
+                      type="text"
+                      value={filters.mailId}
+                      onChange={v => setFilter('mailId', v)}
+                      onClear={() => clearFilter('mailId')}
+                      active={filters.mailId !== ''}
+                    />
+                  </th>
                   <th className="plain-th">Size</th>
                   {/* Last Modified */}
                   <th>
