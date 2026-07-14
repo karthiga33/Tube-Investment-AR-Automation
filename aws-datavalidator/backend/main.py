@@ -1505,7 +1505,10 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
     mail_id = _str(first.get("MAIL_ID"))
     mail_dt = _convert_date(first.get("MAIL_RECEIVED_DATE"))
 
-    # Build payload: hdr = common, dtl = payment OR invoice per row
+    # Build payload: hdr = common info, dtl = ALL rows (PMT and INV)
+    # PMT rows → utr, pay_dt, pay_amt filled; doc fields null
+    # INV rows → doc_no, doc_dt, inv_amt, tds, ded, disc, net filled; payment fields null
+    # APPLIED_AMT = net amount for both PMT and INV
     payload = {
         "hdr": {
             "src":              src,
@@ -1530,27 +1533,27 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
             payload["dtl"].append({
                 "utr":     _str(row.get("TRX_NUMBER")),
                 "pay_dt":  _convert_date(row.get("TXN_DATE")),
-                "pay_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                "pay_amt": _float(row.get("OUTSTANDING_AMT") or 0),
+                "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
                 "doc_no":  None,
                 "doc_dt":  None,
                 "inv_amt": None,
                 "tds":     None,
                 "ded":     None,
                 "disc":    None,
-                "net":     None,
             })
         else:
             payload["dtl"].append({
-                "utr":     None,
-                "pay_dt":  None,
-                "pay_amt": None,
                 "doc_no":  _str(row.get("TRX_NUMBER")),
                 "doc_dt":  _convert_date(row.get("TXN_DATE")),
-                "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
                 "tds":     _float(row.get("TDS") or 0),
                 "ded":     _float(row.get("DEDUCTION") or row.get("REJECTION_SHORT") or 0),
                 "disc":    _float(row.get("DISCOUNT") or 0),
                 "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+                "utr":     None,
+                "pay_dt":  None,
+                "pay_amt": None,
             })
 
     try:
@@ -1626,27 +1629,27 @@ def multi_approve(req: MultiApproveRequest):
                 payload["dtl"].append({
                     "utr":     _str(row.get("TRX_NUMBER")),
                     "pay_dt":  _convert_date(row.get("TXN_DATE")),
-                    "pay_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                    "pay_amt": _float(row.get("OUTSTANDING_AMT") or 0),
+                    "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
                     "doc_no":  None,
                     "doc_dt":  None,
                     "inv_amt": None,
                     "tds":     None,
                     "ded":     None,
                     "disc":    None,
-                    "net":     None,
                 })
             else:
                 payload["dtl"].append({
-                    "utr":     None,
-                    "pay_dt":  None,
-                    "pay_amt": None,
                     "doc_no":  _str(row.get("TRX_NUMBER")),
                     "doc_dt":  _convert_date(row.get("TXN_DATE")),
-                    "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("APPLIED_AMT") or 0),
+                    "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
                     "tds":     _float(row.get("TDS") or 0),
                     "ded":     _float(row.get("DEDUCTION") or row.get("REJECTION_SHORT") or 0),
                     "disc":    _float(row.get("DISCOUNT") or 0),
                     "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+                    "utr":     None,
+                    "pay_dt":  None,
+                    "pay_amt": None,
                 })
 
         try:
