@@ -1505,10 +1505,10 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
     mail_id = _str(first.get("MAIL_ID"))
     mail_dt = _convert_date(first.get("MAIL_RECEIVED_DATE"))
 
-    # Build payload: hdr = common info, dtl = ALL rows (PMT and INV)
-    # PMT rows → only utr, pay_dt, pay_amt filled; doc fields null
-    # INV rows → only doc_no, doc_dt, inv_amt filled; payment fields null
-    # No payment info in hdr (otherwise it replicates to all rows in Oracle)
+    # Build payload for MULTI-CUSTOMER (different from single-customer)
+    # hdr = common info only (customer name, code, mail, src)
+    # dtl = ALL rows (PMT + INV) using standard fields: doc_no, doc_dt, inv_amt, tds, ded, disc, net
+    # No utr/pay_dt/pay_amt fields — multi-customer uses doc_no/doc_dt/inv_amt for everything
 
     payload = {
         "hdr": {
@@ -1531,15 +1531,12 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
         class_val = str(row.get("CLASS") or "").strip().upper()
         if class_val in ("PMT", "PAYMENT"):
             payload["dtl"].append({
-                "utr":     _str(row.get("TRX_NUMBER")),
-                "pay_dt":  _convert_date(row.get("TXN_DATE")),
-                "pay_amt": _float(row.get("OUTSTANDING_AMT") or 0),
-                "doc_no":  None,
-                "doc_dt":  None,
-                "inv_amt": None,
-                "tds":     None,
-                "ded":     None,
-                "disc":    None,
+                "doc_no":  _str(row.get("TRX_NUMBER")),
+                "doc_dt":  _convert_date(row.get("TXN_DATE")),
+                "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
+                "tds":     0.0,
+                "ded":     0.0,
+                "disc":    0.0,
                 "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
             })
 
@@ -1556,9 +1553,6 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
                 "ded":     _float(row.get("DEDUCTION") or row.get("REJECTION_SHORT") or 0),
                 "disc":    _float(row.get("DISCOUNT") or 0),
                 "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
-                "utr":     None,
-                "pay_dt":  None,
-                "pay_amt": None,
             })
 
     try:
@@ -1624,22 +1618,19 @@ def multi_approve(req: MultiApproveRequest):
             "dtl": [],
         }
 
-        # PMT rows first, then INV rows
+        # PMT rows first, then INV rows — all use standard doc_no/doc_dt/inv_amt fields
         for row in rows:
             if row.get("_status") == "rejected":
                 continue
             class_val = str(row.get("CLASS") or "").strip().upper()
             if class_val in ("PMT", "PAYMENT"):
                 payload["dtl"].append({
-                    "utr":     _str(row.get("TRX_NUMBER")),
-                    "pay_dt":  _convert_date(row.get("TXN_DATE")),
-                    "pay_amt": _float(row.get("OUTSTANDING_AMT") or 0),
-                    "doc_no":  None,
-                    "doc_dt":  None,
-                    "inv_amt": None,
-                    "tds":     None,
-                    "ded":     None,
-                    "disc":    None,
+                    "doc_no":  _str(row.get("TRX_NUMBER")),
+                    "doc_dt":  _convert_date(row.get("TXN_DATE")),
+                    "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
+                    "tds":     0.0,
+                    "ded":     0.0,
+                    "disc":    0.0,
                     "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
                 })
 
@@ -1656,9 +1647,6 @@ def multi_approve(req: MultiApproveRequest):
                     "ded":     _float(row.get("DEDUCTION") or row.get("REJECTION_SHORT") or 0),
                     "disc":    _float(row.get("DISCOUNT") or 0),
                     "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
-                    "utr":     None,
-                    "pay_dt":  None,
-                    "pay_amt": None,
                 })
 
         try:
