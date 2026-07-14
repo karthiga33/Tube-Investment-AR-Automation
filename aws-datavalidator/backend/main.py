@@ -1550,7 +1550,7 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
         is_payment = class_val in ("PMT", "PAYMENT")
 
         if is_payment:
-            # PMT rows also go into dtl so they appear in Oracle as separate payment records
+            # PMT rows: include both payment fields AND doc_no so Oracle creates the row
             payload["dtl"].append({
                 "doc_no":  _str(row.get("TRX_NUMBER")),
                 "doc_dt":  _convert_date(row.get("TXN_DATE")),
@@ -1559,6 +1559,9 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
                 "ded":     0.0,
                 "disc":    0.0,
                 "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+                "utr":     _str(row.get("TRX_NUMBER")),
+                "pay_dt":  _convert_date(row.get("TXN_DATE")),
+                "pay_amt": _float(row.get("OUTSTANDING_AMT") or 0),
             })
         else:
             payload["dtl"].append({
@@ -1667,6 +1670,9 @@ def multi_approve(req: MultiApproveRequest):
                     "ded":     0.0,
                     "disc":    0.0,
                     "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+                    "utr":     _str(row.get("TRX_NUMBER")),
+                    "pay_dt":  _convert_date(row.get("TXN_DATE")),
+                    "pay_amt": _float(row.get("OUTSTANDING_AMT") or 0),
                 })
             else:
                 payload["dtl"].append({
