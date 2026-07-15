@@ -1531,6 +1531,7 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
         class_val = str(row.get("CLASS") or "").strip().upper()
         if class_val in ("PMT", "PAYMENT"):
             payload["dtl"].append({
+                "class":   "PMT",
                 "doc_no":  _str(row.get("TRX_NUMBER")),
                 "doc_dt":  _convert_date(row.get("TXN_DATE")),
                 "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
@@ -1546,6 +1547,7 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
         class_val = str(row.get("CLASS") or "").strip().upper()
         if class_val not in ("PMT", "PAYMENT"):
             payload["dtl"].append({
+                "class":   "INV",
                 "doc_no":  _str(row.get("TRX_NUMBER")),
                 "doc_dt":  _convert_date(row.get("TXN_DATE")),
                 "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
@@ -1625,6 +1627,7 @@ def multi_approve(req: MultiApproveRequest):
             class_val = str(row.get("CLASS") or "").strip().upper()
             if class_val in ("PMT", "PAYMENT"):
                 payload["dtl"].append({
+                    "class":   "PMT",
                     "doc_no":  _str(row.get("TRX_NUMBER")),
                     "doc_dt":  _convert_date(row.get("TXN_DATE")),
                     "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
@@ -1640,6 +1643,7 @@ def multi_approve(req: MultiApproveRequest):
             class_val = str(row.get("CLASS") or "").strip().upper()
             if class_val not in ("PMT", "PAYMENT"):
                 payload["dtl"].append({
+                    "class":   "INV",
                     "doc_no":  _str(row.get("TRX_NUMBER")),
                     "doc_dt":  _convert_date(row.get("TXN_DATE")),
                     "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
