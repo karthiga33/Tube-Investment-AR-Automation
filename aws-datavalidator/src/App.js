@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import ValidationPage from './pages/ValidationPage';
 import MultiValidationPage from './pages/MultiValidationPage';
 import RejectedEmailsPage from './pages/RejectedEmailsPage';
+import PdfPasswordPage from './pages/PdfPasswordPage';
 import StatusPage from './pages/StatusPage';
 import AuthPage from './pages/AuthPage';
 import { getCurrentSession, signOut, getUserAttributes } from './auth';
@@ -66,6 +67,7 @@ function App() {
             <Route path="/validate"        element={<ValidationPage />} />
             <Route path="/multi-validate"  element={<MultiValidationPage />} />
             <Route path="/rejected-emails" element={<RejectedEmailsPage />} />
+            <Route path="/pdf-passwords"   element={<PdfPasswordPage />} />
             <Route path="/status"          element={<StatusPage />} />
             <Route path="*"               element={<Navigate to="/" replace />} />
           </Routes>

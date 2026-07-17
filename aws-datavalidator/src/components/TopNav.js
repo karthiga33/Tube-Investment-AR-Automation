@@ -9,6 +9,7 @@ const TopNav = ({ userName, onLogout }) => {
         <NavLink to="/"                className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Documents</NavLink>
         <NavLink to="/status"          className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Email</NavLink>
         <NavLink to="/rejected-emails" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Rejected Emails</NavLink>
+        <NavLink to="/pdf-passwords"   className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>PDF Passwords</NavLink>
       </nav>
       <div className="topnav-brand">AR Automation</div>
       <div className="topnav-right">

@@ -39,4 +39,9 @@ export const api = {
 
   // ── Rejected Emails ────────────────────────────────────────────────────────
   listRejectedEmails:       ()        => req("/api/rejected-emails"),
+
+  // ── PDF Passwords ──────────────────────────────────────────────────────────
+  listPdfPasswords:         ()        => req("/api/pdf-passwords"),
+  savePdfPassword:          (body)    => req("/api/pdf-passwords", { method: "POST", body: JSON.stringify(body) }),
+  deletePdfPassword:        (name)    => req(`/api/pdf-passwords?file_name=${encodeURIComponent(name)}`, { method: "DELETE" }),
 };

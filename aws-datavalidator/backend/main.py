@@ -1739,3 +1739,68 @@ def list_rejected_emails():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+# ── PDF Password Map (DynamoDB pdf_password_map table) ────────────────────────
+PDF_PASSWORD_TABLE = os.getenv("PDF_PASSWORD_TABLE", "pdf_password_map")
+
+
+class PdfPasswordEntry(BaseModel):
+    file_name: str
+    password: str
+
+
+@app.get("/api/pdf-passwords", tags=["PDF Passwords"])
+def list_pdf_passwords():
+    """List all entries from pdf_password_map DynamoDB table."""
+    try:
+        dynamodb_resource = boto3.resource("dynamodb", region_name=REGION)
+        table = dynamodb_resource.Table(PDF_PASSWORD_TABLE)
+        response = table.scan()
+        items = response.get("Items", [])
+        while "LastEvaluatedKey" in response:
+            response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
+            items.extend(response.get("Items", []))
+        from decimal import Decimal
+        def convert(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
+        clean_items = [{k: convert(v) for k, v in item.items()} for item in items]
+        clean_items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return {"items": clean_items, "count": len(clean_items)}
+    except Exception as e:
+        log.warning("Failed to scan pdf_password_map table: %s", e)
+        return {"items": [], "count": 0, "error": str(e)}
+
+
+@app.post("/api/pdf-passwords", tags=["PDF Passwords"])
+def save_pdf_password(entry: PdfPasswordEntry):
+    """Save a file_name + password entry to pdf_password_map DynamoDB table."""
+    try:
+        dynamodb_resource = boto3.resource("dynamodb", region_name=REGION)
+        table = dynamodb_resource.Table(PDF_PASSWORD_TABLE)
+        item = {
+            "file_name": entry.file_name.strip(),
+            "password": entry.password.strip(),
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        table.put_item(Item=item)
+        log.info("Saved PDF password: %s", entry.file_name)
+        return {"status": "success", "item": item}
+    except Exception as e:
+        log.error("Failed to save PDF password: %s", e)
+        raise HTTPException(500, f"Failed to save: {str(e)}")
+
+
+@app.delete("/api/pdf-passwords", tags=["PDF Passwords"])
+def delete_pdf_password(file_name: str = Query(..., description="File name to delete")):
+    """Delete a pdf password entry by file_name."""
+    try:
+        dynamodb_resource = boto3.resource("dynamodb", region_name=REGION)
+        table = dynamodb_resource.Table(PDF_PASSWORD_TABLE)
+        table.delete_item(Key={"file_name": file_name})
+        log.info("Deleted PDF password: %s", file_name)
+        return {"status": "success", "deleted": file_name}
+    except Exception as e:
+        log.error("Failed to delete PDF password: %s", e)
+        raise HTTPException(500, f"Failed to delete: {str(e)}")
