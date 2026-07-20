@@ -43,5 +43,5 @@ export const api = {
   // ── PDF Passwords ──────────────────────────────────────────────────────────
   listPdfPasswords:         ()        => req("/api/pdf-passwords"),
   savePdfPassword:          (body)    => req("/api/pdf-passwords", { method: "POST", body: JSON.stringify(body) }),
-  deletePdfPassword:        (name)    => req(`/api/pdf-passwords?file_name=${encodeURIComponent(name)}`, { method: "DELETE" }),
+  deletePdfPassword:        (subject)  => req(`/api/pdf-passwords?subject=${encodeURIComponent(subject)}`, { method: "DELETE" }),
 };

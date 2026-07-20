@@ -7,7 +7,7 @@ export default function PdfPasswordPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [fileName, setFileName] = useState('');
+  const [subject, setSubject] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -28,11 +28,11 @@ export default function PdfPasswordPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!fileName.trim() || !password.trim()) return;
+    if (!subject.trim() || !password.trim()) return;
     setSaving(true);
     try {
-      await api.savePdfPassword({ file_name: fileName.trim(), password: password.trim() });
-      setFileName('');
+      await api.savePdfPassword({ subject: subject.trim(), password: password.trim() });
+      setSubject('');
       setPassword('');
       load();
     } catch (err) {
@@ -42,11 +42,11 @@ export default function PdfPasswordPage() {
     }
   };
 
-  const handleDelete = async (name) => {
-    if (!window.confirm(`Delete password entry for "${name}"?`)) return;
+  const handleDelete = async (subj) => {
+    if (!window.confirm(`Delete password entry for "${subj}"?`)) return;
     try {
-      await api.deletePdfPassword(name);
-      setItems(prev => prev.filter(i => i.file_name !== name));
+      await api.deletePdfPassword(subj);
+      setItems(prev => prev.filter(i => i.subject !== subj));
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
     }
@@ -70,9 +70,9 @@ export default function PdfPasswordPage() {
         <form className="pdf-add-form" onSubmit={handleSave}>
           <input
             className="pdf-input"
-            placeholder="File name (e.g. BAJAJ_Payment.pdf)"
-            value={fileName}
-            onChange={e => setFileName(e.target.value)}
+            placeholder="Subject (e.g. Payment Advice - BAJAJ)"
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
             required
           />
           <input
@@ -95,7 +95,7 @@ export default function PdfPasswordPage() {
             <thead>
               <tr>
                 <th>#</th>
-                <th>File Name</th>
+                <th>Subject</th>
                 <th>Password</th>
                 <th>Created At</th>
                 <th>Action</th>
@@ -110,9 +110,9 @@ export default function PdfPasswordPage() {
                 </tr>
               ) : (
                 items.map((item, idx) => (
-                  <tr key={item.file_name}>
+                  <tr key={item.subject}>
                     <td>{idx + 1}</td>
-                    <td className="pdf-filename">{item.file_name}</td>
+                    <td className="pdf-filename">{item.subject}</td>
                     <td className="pdf-pw">{item.password}</td>
                     <td className="pdf-date">
                       {item.created_at ? new Date(item.created_at).toLocaleString('en-IN', {
@@ -121,7 +121,7 @@ export default function PdfPasswordPage() {
                       }) : '—'}
                     </td>
                     <td>
-                      <button className="btn-del" onClick={() => handleDelete(item.file_name)} title="Delete">
+                      <button className="btn-del" onClick={() => handleDelete(item.subject)} title="Delete">
                         <Trash2 size={14} />
                       </button>
                     </td>

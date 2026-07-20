@@ -1745,7 +1745,7 @@ PDF_PASSWORD_TABLE = os.getenv("PDF_PASSWORD_TABLE", "pdf_password_map")
 
 
 class PdfPasswordEntry(BaseModel):
-    file_name: str
+    subject: str
     password: str
 
 
@@ -1775,17 +1775,17 @@ def list_pdf_passwords():
 
 @app.post("/api/pdf-passwords", tags=["PDF Passwords"])
 def save_pdf_password(entry: PdfPasswordEntry):
-    """Save a file_name + password entry to pdf_password_map DynamoDB table."""
+    """Save a subject + password entry to pdf_password_map DynamoDB table."""
     try:
         dynamodb_resource = boto3.resource("dynamodb", region_name=REGION)
         table = dynamodb_resource.Table(PDF_PASSWORD_TABLE)
         item = {
-            "file_name": entry.file_name.strip(),
+            "subject": entry.subject.strip(),
             "password": entry.password.strip(),
             "created_at": datetime.utcnow().isoformat(),
         }
         table.put_item(Item=item)
-        log.info("Saved PDF password: %s", entry.file_name)
+        log.info("Saved PDF password: %s", entry.subject)
         return {"status": "success", "item": item}
     except Exception as e:
         log.error("Failed to save PDF password: %s", e)
@@ -1793,14 +1793,14 @@ def save_pdf_password(entry: PdfPasswordEntry):
 
 
 @app.delete("/api/pdf-passwords", tags=["PDF Passwords"])
-def delete_pdf_password(file_name: str = Query(..., description="File name to delete")):
-    """Delete a pdf password entry by file_name."""
+def delete_pdf_password(subject: str = Query(..., description="Subject to delete")):
+    """Delete a pdf password entry by subject."""
     try:
         dynamodb_resource = boto3.resource("dynamodb", region_name=REGION)
         table = dynamodb_resource.Table(PDF_PASSWORD_TABLE)
-        table.delete_item(Key={"file_name": file_name})
-        log.info("Deleted PDF password: %s", file_name)
-        return {"status": "success", "deleted": file_name}
+        table.delete_item(Key={"subject": subject})
+        log.info("Deleted PDF password: %s", subject)
+        return {"status": "success", "deleted": subject}
     except Exception as e:
         log.error("Failed to delete PDF password: %s", e)
         raise HTTPException(500, f"Failed to delete: {str(e)}")
