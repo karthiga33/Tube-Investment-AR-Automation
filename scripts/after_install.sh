@@ -9,9 +9,15 @@ sudo chown -R ec2-user:ec2-user /home/ec2-user/Tube-Project
 # Navigate to project
 cd /home/ec2-user/Tube-Project/aws-datavalidator
 
-# Install frontend dependencies and build
+# Remove stale node_modules and reinstall
+echo "Cleaning node_modules..."
+rm -rf node_modules
+
 echo "Installing npm dependencies..."
-npm ci --production=false
+npm install
+
+echo "Updating browserslist db..."
+npx update-browserslist-db@latest --update-db || true
 
 echo "Building React app..."
 npm run build
