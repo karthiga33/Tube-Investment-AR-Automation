@@ -105,3 +105,53 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+/* ── Panel Filters ── */
+.panel-filters {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  align-items: center;
+}
+
+.filter-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  font-size: 12px;
+  outline: none;
+}
+
+.filter-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.1);
+}
+
+.filter-date {
+  padding: 5px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  font-size: 11px;
+  outline: none;
+}
+
+.filter-date:focus {
+  border-color: #6366f1;
+}
+
+.filter-clear {
+  padding: 5px 10px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 5px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.filter-clear:hover {
+  background: #fecaca;
+}

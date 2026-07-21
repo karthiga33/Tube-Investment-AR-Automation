@@ -92,20 +92,69 @@ export default function StatusPage() {
 }
 
 function FileListPanel({ title, s3Path, files, type, emptyMsg, icon }) {
+  const [nameFilter, setNameFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const filtered = files.filter(f => {
+    if (nameFilter && !f.name.toLowerCase().includes(nameFilter.toLowerCase())) return false;
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      if (new Date(f.last_modified) < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(f.last_modified) > to) return false;
+    }
+    return true;
+  });
+
+  const hasFilters = nameFilter || dateFrom || dateTo;
+
   return (
     <div className={`status-panel panel-${type}`}>
       <div className="panel-hdr">
         <div className="panel-hdr-left">
           {icon}
           <span className="panel-title">{title}</span>
-          <span className={`count-pill pill-${type}`}>{files.length}</span>
+          <span className={`count-pill pill-${type}`}>{filtered.length}</span>
         </div>
         <span className="panel-s3">s3://claude-test-tube/{s3Path}</span>
       </div>
 
-      {files.length === 0 ? (
+      {/* Filters */}
+      <div className="panel-filters">
+        <input
+          className="filter-input"
+          placeholder="Search file name..."
+          value={nameFilter}
+          onChange={e => setNameFilter(e.target.value)}
+        />
+        <input
+          type="date"
+          className="filter-date"
+          value={dateFrom}
+          onChange={e => setDateFrom(e.target.value)}
+          title="From date"
+        />
+        <input
+          type="date"
+          className="filter-date"
+          value={dateTo}
+          onChange={e => setDateTo(e.target.value)}
+          title="To date"
+        />
+        {hasFilters && (
+          <button className="filter-clear" onClick={() => { setNameFilter(''); setDateFrom(''); setDateTo(''); }}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
         <div className="panel-empty">
-          <p>{emptyMsg}</p>
+          <p>{hasFilters ? 'No files match filters.' : emptyMsg}</p>
         </div>
       ) : (
         <table className="status-table">
@@ -117,7 +166,7 @@ function FileListPanel({ title, s3Path, files, type, emptyMsg, icon }) {
             </tr>
           </thead>
           <tbody>
-            {files.map(f => (
+            {filtered.map(f => (
               <tr key={f.key} className="status-row">
                 <td className="sfile-cell">
                   {type === 'approved'
