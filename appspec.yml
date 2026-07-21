@@ -4,8 +4,14 @@ os: linux
 files:
   - source: /
     destination: /home/ec2-user/Tube-Project
+    overwrite: true
 
 hooks:
+  BeforeInstall:
+    - location: scripts/stop_app.sh
+      timeout: 60
+      runas: ec2-user
+
   AfterInstall:
     - location: scripts/after_install.sh
       timeout: 300
