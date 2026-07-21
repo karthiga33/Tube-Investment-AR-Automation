@@ -7,6 +7,9 @@ export default function RejectedEmailsPage() {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
+  const [filterName, setFilterName] = useState('');
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -30,6 +33,21 @@ export default function RejectedEmailsPage() {
     });
   };
 
+  // Apply filters
+  const filtered = items.filter(item => {
+    if (filterName && !(item.file_name || '').toLowerCase().includes(filterName.toLowerCase())) return false;
+    if (filterFrom) {
+      const from = new Date(filterFrom);
+      if (new Date(item.rejected_at) < from) return false;
+    }
+    if (filterTo) {
+      const to = new Date(filterTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(item.rejected_at) > to) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="rej-page">
       <div className="rej-header">
@@ -38,11 +56,34 @@ export default function RejectedEmailsPage() {
           <span className="rej-subtitle">Files rejected at processing (duplicate/invalid)</span>
         </div>
         <div className="rej-header-right">
-          <span className="rej-count">{items.length} rejected file{items.length !== 1 ? 's' : ''}</span>
+          <span className="rej-count">{filtered.length} rejected file{filtered.length !== 1 ? 's' : ''}</span>
           <button className="rej-refresh" onClick={load} disabled={loading}>
             <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
           </button>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="rej-filters">
+        <input
+          className="rej-filter-input"
+          placeholder="Search file name..."
+          value={filterName}
+          onChange={e => setFilterName(e.target.value)}
+        />
+        <div className="rej-date-filter">
+          <label>From:</label>
+          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+        </div>
+        <div className="rej-date-filter">
+          <label>To:</label>
+          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} />
+        </div>
+        {(filterName || filterFrom || filterTo) && (
+          <button className="rej-clear-btn" onClick={() => { setFilterName(''); setFilterFrom(''); setFilterTo(''); }}>
+            Clear
+          </button>
+        )}
       </div>
 
       {error && (
@@ -51,7 +92,7 @@ export default function RejectedEmailsPage() {
 
       {loading && !items.length ? (
         <div className="rej-loading"><RefreshCw size={20} className="spin"/> Loading…</div>
-      ) : items.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="rej-empty">No rejected files found.</div>
       ) : (
         <div className="rej-table-wrap">
@@ -66,7 +107,7 @@ export default function RejectedEmailsPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
+              {filtered.map((item, idx) => (
                 <tr key={`${item.file_name}-${item.rejected_at}-${idx}`}>
                   <td className="rej-fname">{item.file_name || '—'}</td>
                   <td>{fmt(item.rejected_at)}</td>
