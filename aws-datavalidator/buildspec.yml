@@ -1,0 +1,31 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+      python: 3.11
+    commands:
+      - echo "Installing frontend dependencies..."
+      - cd aws-datavalidator
+      - npm ci
+      - echo "Installing backend dependencies..."
+      - cd backend
+      - pip install -r requirements.txt
+      - cd ../..
+
+  build:
+    commands:
+      - echo "Building React frontend..."
+      - cd aws-datavalidator
+      - npm run build
+      - cd ..
+
+  post_build:
+    commands:
+      - echo "Build completed"
+
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: no

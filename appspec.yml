@@ -1,0 +1,17 @@
+version: 0.0
+os: linux
+
+files:
+  - source: /
+    destination: /home/ec2-user/Tube-Project
+
+hooks:
+  AfterInstall:
+    - location: scripts/after_install.sh
+      timeout: 300
+      runas: ec2-user
+
+  ApplicationStart:
+    - location: scripts/start_app.sh
+      timeout: 120
+      runas: ec2-user
