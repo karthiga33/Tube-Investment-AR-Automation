@@ -11,7 +11,7 @@ const TopNav = ({ userName, onLogout }) => {
         <NavLink to="/rejected-emails" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>Rejected Emails</NavLink>
         <NavLink to="/pdf-passwords"   className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>PDF Passwords</NavLink>
       </nav>
-      <div className="topnav-brand">AR Automation</div>
+      <div className="topnav-brand">TI AR Automation</div>
       <div className="topnav-right">
         <span className="admin-tag">{userName}</span>
         <button className="btn-logout" onClick={onLogout}>Logout</button>
