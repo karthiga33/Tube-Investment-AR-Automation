@@ -3,6 +3,9 @@ set -e
 
 echo "=== After Install ==="
 
+# Fix ownership (CodeDeploy copies files as root)
+sudo chown -R ec2-user:ec2-user /home/ec2-user/Tube-Project
+
 # Navigate to project
 cd /home/ec2-user/Tube-Project/aws-datavalidator
 
