@@ -25,7 +25,12 @@ export const api = {
   rejectFile:       (body)    => req("/api/file/reject",  { method: "POST", body: JSON.stringify(body) }),
   deleteFile:       (key)     => req(`/api/file/delete?key=${encodeURIComponent(key)}`, { method: "POST" }),
   presignUrl:       (key)     => req(`/api/file/presign?key=${encodeURIComponent(key)}`),
-  findInput:        (outKey)  => req(`/api/file/find-input?output_key=${encodeURIComponent(outKey)}`),
+  findInput:        (outKey, importRef, mailId)  => {
+    let url = `/api/file/find-input?output_key=${encodeURIComponent(outKey)}`;
+    if (importRef) url += `&import_ref=${encodeURIComponent(importRef)}`;
+    if (mailId) url += `&mail_id=${encodeURIComponent(mailId)}`;
+    return req(url);
+  },
   docPreview:       (key)     => req(`/api/file/doc-preview?key=${encodeURIComponent(key)}`),
   viewUrl:          (key)     => `${BASE}/api/file/view?key=${encodeURIComponent(key)}`,
 

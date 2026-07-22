@@ -46,14 +46,18 @@ export default function ValidationPage() {
     if (!fileKey) { navigate('/'); return; }
     setLoading(true); setError(null);
     try {
-      const [data, inputInfo] = await Promise.all([
-        api.loadFile(fileKey),
-        api.findInput(fileKey).catch(() => ({ found: false })),
-      ]);
+      // Step 1: Load the extracted data first (contains import_ref / mail_id)
+      const data = await api.loadFile(fileKey);
       setHeader(data.header || {});
       setTransactions(
         (data.transactions || []).map((t, i) => ({ ...t, _id: i + 1 }))
       );
+
+      // Step 2: Use header metadata to find the correct input PDF
+      const importRef = data.header?.import_ref || '';
+      const mailId    = data.header?.mail_id || '';
+      const inputInfo = await api.findInput(fileKey, importRef, mailId).catch(() => ({ found: false }));
+
       if (inputInfo?.found && inputInfo?.key) {
         setInputFile({ ...inputInfo, url: api.viewUrl(inputInfo.key) });
       } else {

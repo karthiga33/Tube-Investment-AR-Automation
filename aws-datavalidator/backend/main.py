@@ -1027,28 +1027,110 @@ def reject_file(req: RejectRequest):
 
 # ── Find matching input file in emails/ ──────────────────────────────────────
 @app.get("/api/file/find-input", tags=["Files"])
-def find_input_file(output_key: str = Query(...)):
+def find_input_file(
+    output_key: str = Query(...),
+    import_ref: str = Query(None, description="IMPORT_REFERENCE from the Excel header — often contains the original filename or S3 key"),
+    mail_id: str = Query(None, description="MAIL_ID from the Excel header — sender email address"),
+):
     """
-    Given an output key like output/NISSANMOTORINDIAPVTLTD_extracted.xlsx,
-    find the matching source file in emails/ by stem matching.
-    Returns presigned URL if found.
+    Given an output key like output/Payment-Advice_extracted.xlsx,
+    find the matching source file in emails/ by:
+      1. import_ref (if provided — may contain original S3 key or filename)
+      2. Exact path-based match (preserve subfolder structure)
+      3. Stem match with disambiguation by mail_id or last_modified
     """
-    stem = Path(output_key).stem.replace("_extracted", "").lower()
+    raw_stem = Path(output_key).stem.replace("_extracted", "")
+    stem = raw_stem.lower()
+    # Preserve the relative path from the output key (handles subfolders)
+    # e.g., output/subfolder/Payment-Advice_extracted.xlsx → subfolder/Payment-Advice
+    rel_path = output_key.replace(OUTPUT_PREFIX, "")
+    rel_dir = str(Path(rel_path).parent)  # "." if no subfolder, else "subfolder"
 
     try:
         items = s3_list(INPUT_PREFIX)
     except HTTPException:
         return {"found": False}
 
-    # Try exact stem match first, then prefix match
-    best = None
+    # Strategy 1: Use import_ref if it contains a filename or S3 key
+    if import_ref and import_ref.strip():
+        ref_clean = import_ref.strip()
+        # Check if it's a full S3 key (starts with emails/ or contains /)
+        if ref_clean.startswith(INPUT_PREFIX):
+            # Direct S3 key reference
+            for item in items:
+                if item["key"] == ref_clean:
+                    try:
+                        url = s3().generate_presigned_url(
+                            "get_object",
+                            Params={"Bucket": BUCKET, "Key": item["key"], "ResponseContentDisposition": "inline"},
+                            ExpiresIn=900,
+                        )
+                        return {"found": True, "key": item["key"], "name": item["name"],
+                                "ext": Path(item["name"]).suffix.lower().lstrip("."), "url": url}
+                    except (NoCredentialsError, ClientError):
+                        return {"found": False}
+        # Check if import_ref matches a filename in emails/
+        ref_stem = Path(ref_clean).stem.lower()
+        for item in items:
+            item_stem = Path(item["name"]).stem.lower()
+            if item_stem == ref_stem or item["name"].lower() == ref_clean.lower():
+                try:
+                    url = s3().generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": BUCKET, "Key": item["key"], "ResponseContentDisposition": "inline"},
+                        ExpiresIn=900,
+                    )
+                    return {"found": True, "key": item["key"], "name": item["name"],
+                            "ext": Path(item["name"]).suffix.lower().lstrip("."), "url": url}
+                except (NoCredentialsError, ClientError):
+                    return {"found": False}
+
+    # Strategy 2: If the output file is in a subfolder, look for input in same subfolder
+    if rel_dir and rel_dir != ".":
+        for item in items:
+            # Check if the input file is in the same relative subfolder
+            item_rel = item["name"]  # relative to INPUT_PREFIX
+            item_dir = str(Path(item_rel).parent)
+            item_stem_lower = Path(item_rel).stem.lower()
+            if item_dir == rel_dir and item_stem_lower == stem:
+                try:
+                    url = s3().generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": BUCKET, "Key": item["key"], "ResponseContentDisposition": "inline"},
+                        ExpiresIn=900,
+                    )
+                    return {"found": True, "key": item["key"], "name": item["name"],
+                            "ext": Path(item["name"]).suffix.lower().lstrip("."), "url": url}
+                except (NoCredentialsError, ClientError):
+                    return {"found": False}
+
+    # Strategy 3: Stem matching with disambiguation
+    stem_matches = []
     for item in items:
-        item_stem = Path(item["name"]).stem.lower()
-        if item_stem == stem:
-            best = item
-            break
-        if item_stem.startswith(stem) or stem.startswith(item_stem):
-            best = item  # keep looking for exact
+        item_name = Path(item["name"]).stem.lower()
+        if item_name == stem:
+            stem_matches.append(item)
+        elif item_name.startswith(stem) or stem.startswith(item_name):
+            stem_matches.append(item)
+
+    if len(stem_matches) == 1:
+        best = stem_matches[0]
+    elif len(stem_matches) > 1:
+        # Multiple matches — try to narrow down
+        best = None
+        # Try mail_id-based narrowing (check if mail sender is in folder name)
+        if mail_id and mail_id.strip():
+            mail_prefix = mail_id.strip().split("@")[0].lower()
+            narrowed = [it for it in stem_matches if mail_prefix in it["key"].lower()]
+            if len(narrowed) == 1:
+                best = narrowed[0]
+        # If still ambiguous, match by position in the list relative to output position
+        # (output files and input files are often processed in same order)
+        if not best:
+            # Pick the most recently modified one
+            best = max(stem_matches, key=lambda x: x.get("last_modified", ""))
+    else:
+        best = None
 
     if not best:
         return {"found": False, "stem_searched": stem}
