@@ -100,6 +100,8 @@ export default function RejectedEmailsPage() {
             <thead>
               <tr>
                 <th>File Name</th>
+                <th>Email ID</th>
+                <th>Email Date</th>
                 <th>Rejected At</th>
                 <th>Reason</th>
                 <th>Source</th>
@@ -110,6 +112,8 @@ export default function RejectedEmailsPage() {
               {filtered.map((item, idx) => (
                 <tr key={`${item.file_name}-${item.rejected_at}-${idx}`}>
                   <td className="rej-fname">{item.file_name || '—'}</td>
+                  <td className="rej-email">{item.mail_id || item.email_id || item.sender || '—'}</td>
+                  <td>{item.mail_date || item.email_date ? fmt(item.mail_date || item.email_date) : '—'}</td>
                   <td>{fmt(item.rejected_at)}</td>
                   <td className="rej-reason">{item.reason || '—'}</td>
                   <td><span className="rej-source-badge">{item.source || '—'}</span></td>

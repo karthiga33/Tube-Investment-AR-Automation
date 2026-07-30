@@ -37,6 +37,8 @@
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
 }
 .rej-table {
   width: 100%;
@@ -51,6 +53,9 @@
   padding: 10px 14px;
   border-bottom: 1px solid #e5e7eb;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 .rej-table td {
   padding: 10px 14px;
@@ -61,6 +66,7 @@
 .rej-table tr:hover td { background: #f9fafb; }
 
 .rej-fname { font-weight: 600; color: #111827; }
+.rej-email { color: #2563eb; font-size: 12px; }
 .rej-reason { color: #dc2626; font-size: 12px; max-width: 300px; }
 .rej-key { font-size: 11px; color: #6b7280; font-family: monospace; }
 .rej-source-badge {
