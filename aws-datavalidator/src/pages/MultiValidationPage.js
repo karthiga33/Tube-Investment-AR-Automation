@@ -36,8 +36,14 @@ export default function MultiValidationPage() {
 
       const custs = (data.customers || []).map((c, ci) => ({
         ...c,
-        status: 'pending',
-        rows: (c.rows || []).map((r, ri) => ({ ...r, _id: `${ci}-${ri}` })),
+        // Preserve backend status (approved/rejected) — only default to 'pending' if not set
+        status: c.status || 'pending',
+        rows: (c.rows || []).map((r, ri) => ({
+          ...r,
+          _id: `${ci}-${ri}`,
+          // Preserve row status from backend
+          _status: r._status || undefined,
+        })),
       }));
       setCustomers(custs);
 
@@ -59,20 +65,26 @@ export default function MultiValidationPage() {
   const updateCustomer = (idx, patch) =>
     setCustomers(prev => prev.map((c, i) => i === idx ? { ...c, ...patch } : c));
 
-  const selectAllCustomer = (idx) =>
+  const selectAllCustomer = (idx) => {
+    if (customers[idx].status === 'approved' || customers[idx].status === 'rejected') return;
     updateCustomer(idx, {
       status: 'approved',
       rows: customers[idx].rows.map(r => ({ ...r, _status: 'approved' })),
     });
+  };
 
-  const rejectCustomer = (idx) =>
+  const rejectCustomer = (idx) => {
+    if (customers[idx].status === 'approved' || customers[idx].status === 'rejected') return;
     updateCustomer(idx, {
       status: 'rejected',
       rows: customers[idx].rows.map(r => ({ ...r, _status: 'rejected' })),
     });
+  };
 
   // Per-row status — auto-update customer status based on rows
   const setRowStatus = (custIdx, rowIdx, status) => {
+    // Don't allow changes on locked customers
+    if (customers[custIdx].status === 'approved' || customers[custIdx].status === 'rejected') return;
     setCustomers(prev => prev.map((c, i) => {
       if (i !== custIdx) return c;
       const newRows = c.rows.map((r, ri) =>
@@ -88,6 +100,7 @@ export default function MultiValidationPage() {
 
   // Update a header field (applies to all rows of that customer)
   const updateHeaderField = (custIdx, field, value) => {
+    if (customers[custIdx].status === 'approved' || customers[custIdx].status === 'rejected') return;
     setCustomers(prev => prev.map((c, i) => {
       if (i !== custIdx) return c;
       const newRows = c.rows.map(r => ({ ...r, [field]: value }));
@@ -100,6 +113,7 @@ export default function MultiValidationPage() {
 
   // Update a cell in a specific row
   const updateCell = (custIdx, rowIdx, field, value) => {
+    if (customers[custIdx].status === 'approved' || customers[custIdx].status === 'rejected') return;
     setCustomers(prev => prev.map((c, i) => {
       if (i !== custIdx) return c;
       const newRows = c.rows.map((r, ri) => ri === rowIdx ? { ...r, [field]: value } : r);
@@ -114,15 +128,26 @@ export default function MultiValidationPage() {
       showToast(`${pending} customer(s) still pending — approve or reject each one first.`, 'error');
       return;
     }
+    // Only send customers that are approved and not already sent
+    const toSend = customers.filter(c => c.status === 'approved');
+    if (toSend.length === 0) {
+      showToast('No customers to approve — all are already processed.', 'error');
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await api.multiApproveFile({
         input_key: fileKey,
-        customers: stripMeta(customers.filter(c => c.status === 'approved')),
+        customers: stripMeta(toSend),
       });
       const count = result.customers?.length || 0;
-      showToast(`${count} customer(s) approved and sent ✓`);
-      setTimeout(() => navigate('/'), 1200);
+      const alreadyCount = (result.customers || []).filter(c => c.status === 'already_approved').length;
+      if (alreadyCount > 0 && alreadyCount === count) {
+        showToast('All customers were already approved previously.', 'warn');
+      } else {
+        showToast(`${count - alreadyCount} customer(s) approved and sent ✓`);
+        setTimeout(() => navigate('/'), 1200);
+      }
     } catch (e) {
       showToast(`Approve failed: ${e.message}`, 'error');
     } finally {
@@ -133,6 +158,15 @@ export default function MultiValidationPage() {
   // ── Per-customer approve ──────────────────────────────────────────────────
   const handleApproveCustomer = async (idx) => {
     const cust = customers[idx];
+    // Guard: prevent re-approval of already approved/rejected customers
+    if (cust.status === 'approved') {
+      showToast(`${cust.cust_name} is already approved — cannot approve again.`, 'error');
+      return;
+    }
+    if (cust.status === 'rejected') {
+      showToast(`${cust.cust_name} is already rejected.`, 'error');
+      return;
+    }
     // First mark all rows approved
     const approved = {
       ...cust,
@@ -146,6 +180,13 @@ export default function MultiValidationPage() {
       console.log('Payload:', JSON.stringify(payload).substring(0, 500));
       const result = await api.multiCustomerApprove(payload);
       console.log('API result:', result);
+
+      // Handle already_approved response from backend
+      if (result.status === 'already_approved') {
+        showToast(`${cust.cust_name} was already approved previously.`, 'warn');
+        return;
+      }
+
       const apiStatus = result.api_result?.status;
       showToast(
         apiStatus === 'success'
@@ -157,6 +198,8 @@ export default function MultiValidationPage() {
       );
     } catch (e) {
       console.error('Approve error:', e);
+      // Revert status on failure
+      updateCustomer(idx, { ...cust });
       showToast(`Approve failed: ${e.message}`, 'error');
     }
   };

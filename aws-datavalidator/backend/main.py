@@ -1369,11 +1369,40 @@ def list_multi_output_files():
     """
     Returns multi-output files split by customer.
     One file with 4 customers → 4 entries in the list, each with its own customer name.
+    Shows per-customer approval/rejection status.
     """
     items = s3_list(MULTI_OUTPUT_PREFIX)
+
+    # Build approved/rejected lookup for status enrichment
+    approved_names = set()  # cust_name from approved JSONs
+    approved_keys = set()   # file stems in Approved/
+    rejected_keys = set()   # file stems in Reject/
+    try:
+        for item in s3_list(APPROVED_PREFIX):
+            fname = item["name"].replace(".json", "").lower()
+            approved_keys.add(fname)
+            # Read JSON to get actual customer name
+            try:
+                raw_json = s3_get(item["key"])
+                data = json.loads(raw_json)
+                aname = data.get("hdr", {}).get("cust_name", "").strip().lower()
+                if aname:
+                    approved_names.add(aname)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        for item in s3_list(REJECT_PREFIX):
+            fname = item["name"].replace("_rejected.xlsx", "").lower()
+            rejected_keys.add(fname)
+    except Exception:
+        pass
+
     result = []
     for it in items:
         name = it["name"]
+        file_stem = Path(name).stem
         # Try to read customer names and mail_id from the Excel
         try:
             raw = s3_get(it["key"])
@@ -1390,10 +1419,19 @@ def list_multi_output_files():
                 names = [str(n).strip() for n in names if str(n).strip()]
                 if names:
                     for cust_name in names:
+                        # Determine per-customer status
+                        cust_name_safe = cust_name.replace("/", "_").replace(" ", "_").replace(".", "_")
+                        cust_key = f"{file_stem}_{cust_name_safe}".lower()
+                        if cust_name.strip().lower() in approved_names or cust_key in approved_keys:
+                            cust_status = "approved"
+                        elif cust_key in rejected_keys:
+                            cust_status = "rejected"
+                        else:
+                            cust_status = "pending"
                         result.append({
                             **it,
                             "company": cust_name,
-                            "status": "pending",
+                            "status": cust_status,
                             "source_type": "MULTI",
                             "mail_id": mail_id,
                         })
@@ -1477,7 +1515,17 @@ def load_multi_file(key: str = Query(..., description="S3 key of multi-output XL
         if not cust_no_col and not cust_name_col:
             return {"input_key": key, "demo_mode": False, "customers": [], "error": "No customer identifier column found"}
 
-        group_col = cust_no_col or cust_name_col
+        # Decide grouping column: prefer CUSTOMER_NAME if CUST_NO has only 1 unique value
+        # (means multiple customers share the same CUST_NO — common in multi-customer files)
+        if cust_no_col and cust_name_col:
+            unique_cust_nos = df[cust_no_col].dropna().nunique()
+            unique_cust_names = df[cust_name_col].dropna().nunique()
+            if unique_cust_nos == 1 and unique_cust_names > 1:
+                group_col = cust_name_col
+            else:
+                group_col = cust_name_col if unique_cust_names >= unique_cust_nos else cust_no_col
+        else:
+            group_col = cust_name_col or cust_no_col
 
         # Convert all columns to string-safe values for JSON — handle NaN safely
         import math
@@ -1500,31 +1548,52 @@ def load_multi_file(key: str = Query(..., description="S3 key of multi-output XL
         customers = []
         stem = Path(key).stem
         # Check which customers are already approved/rejected
+        # Build lookup sets using both the JSON filename and the cust_name inside
         approved_keys = set()
+        approved_names = set()  # Track by customer name for shared CUST_NO scenarios
         rejected_keys = set()
+        rejected_names = set()
         try:
             for item in s3_list(APPROVED_PREFIX):
-                approved_keys.add(item["name"].replace(".json", "").lower())
+                fname = item["name"].replace(".json", "").lower()
+                approved_keys.add(fname)
+                # Also read JSON to get cust_name for accurate matching
+                try:
+                    raw_json = s3_get(item["key"])
+                    data = json.loads(raw_json)
+                    aname = data.get("hdr", {}).get("cust_name", "").strip().lower()
+                    if aname:
+                        approved_names.add(aname)
+                except Exception:
+                    pass
         except Exception:
             pass
         try:
             for item in s3_list(REJECT_PREFIX):
-                rejected_keys.add(item["name"].replace("_rejected.xlsx", "").lower())
+                fname = item["name"].replace("_rejected.xlsx", "").lower()
+                rejected_keys.add(fname)
         except Exception:
             pass
 
-        for group_key, group_df in df.groupby(group_col, sort=False):
+        # Drop rows where the group column is blank (separator rows between customers)
+        df_filtered = df[df[group_col].notna() & (df[group_col].astype(str).str.strip() != "")]
+
+        for group_key, group_df in df_filtered.groupby(group_col, sort=False):
+            if not group_key or str(group_key).strip() == "" or str(group_key).strip().lower() == "none":
+                continue  # skip empty/null groups
             first = group_df.iloc[0]
             cust_name = _str(first.get(cust_name_col)) if cust_name_col else str(group_key)
             cust_no   = _str(first.get(cust_no_col))   if cust_no_col   else ""
             rows = group_df.to_dict(orient="records")
 
             # Check if this customer was already approved/rejected
-            cust_key = f"{stem}_{cust_no}".replace("/", "_").replace(" ", "_").lower()
-            if cust_key in approved_keys:
+            # Match by key pattern OR by customer name (handles shared CUST_NO)
+            cust_key = f"{stem}_{cust_no}".replace("/", "_").replace(" ", "_").replace(".", "_").lower()
+            cust_name_key = f"{stem}_{cust_name}".replace("/", "_").replace(" ", "_").replace(".", "_").lower()
+            if cust_key in approved_keys or cust_name_key in approved_keys or cust_name.strip().lower() in approved_names:
                 cust_status = "approved"
                 row_status  = "approved"
-            elif cust_key in rejected_keys:
+            elif cust_key in rejected_keys or cust_name_key in rejected_keys:
                 cust_status = "rejected"
                 row_status  = "rejected"
             else:
@@ -1563,13 +1632,33 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
     """
     Approve a single customer from a multi-customer file.
     Builds multi-customer payload (payment vs invoice split) and sends to downstream API.
-    Saves to Approved/{input_stem}_{cust_no}.json
+    Saves to Approved/{input_stem}_{cust_name_safe}.json
+    Prevents duplicate approval — returns error if already approved.
     """
     stem     = Path(req.input_key).stem
     cust     = req.customer
     cust_no  = str(cust.get("cust_no", "")).replace("/", "_").replace(" ", "_") or "unknown"
     cust_name = cust.get("cust_name", "")
-    json_key = f"{APPROVED_PREFIX}{stem}_{cust_no}.json"
+    # Use customer name (sanitized) as key since CUST_NO may be shared across customers
+    cust_name_safe = cust_name.replace("/", "_").replace(" ", "_").replace(".", "_") or cust_no
+    json_key = f"{APPROVED_PREFIX}{stem}_{cust_name_safe}.json"
+
+    # ── Guard: prevent re-approval ────────────────────────────────────────────
+    try:
+        s3().head_object(Bucket=BUCKET, Key=json_key)
+        # File already exists — this customer was already approved
+        log.info("Already approved: %s (%s)", cust_name, json_key)
+        return {
+            "status":     "already_approved",
+            "message":    f"{cust_name} has already been approved.",
+            "s3_key":     f"s3://{BUCKET}/{json_key}",
+            "api_result": {"status": "skipped", "reason": "already_approved"},
+        }
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "404":
+            pass  # non-404 errors: proceed anyway
+    except Exception:
+        pass  # if check fails, proceed with approval
 
     rows = cust.get("rows", [])
 
@@ -1682,7 +1771,22 @@ def multi_approve(req: MultiApproveRequest):
 
         cust_no   = str(cust.get("cust_no", "")).replace("/", "_").replace(" ", "_") or "unknown"
         cust_name = cust.get("cust_name", "")
-        json_key  = f"{APPROVED_PREFIX}{stem}_{cust_no}.json"
+        # Use customer name in key to avoid collision when CUST_NO is shared
+        cust_name_safe = cust_name.replace("/", "_").replace(" ", "_").replace(".", "_") or cust_no
+        json_key  = f"{APPROVED_PREFIX}{stem}_{cust_name_safe}.json"
+
+        # Skip if already approved
+        try:
+            s3().head_object(Bucket=BUCKET, Key=json_key)
+            results.append({"cust_no": cust_no, "cust_name": cust_name, "status": "already_approved"})
+            log.info("Skipping already-approved: %s", cust_name)
+            continue
+        except ClientError as e:
+            if e.response["Error"]["Code"] != "404":
+                pass
+        except Exception:
+            pass
+
         rows      = cust.get("rows", [])
         first     = rows[0] if rows else {}
         mail_id   = _str(first.get("MAIL_ID"))
