@@ -1105,29 +1105,69 @@ def find_input_file(
                     return {"found": False}
 
     # Strategy 3: Stem matching with disambiguation
-    stem_matches = []
+    # First try exact stem matches only (no partial/prefix matching)
+    exact_matches = []
+    partial_matches = []
     for item in items:
         item_name = Path(item["name"]).stem.lower()
         if item_name == stem:
-            stem_matches.append(item)
+            exact_matches.append(item)
         elif item_name.startswith(stem) or stem.startswith(item_name):
-            stem_matches.append(item)
+            partial_matches.append(item)
+
+    # Prefer exact matches; only use partial if no exact found
+    stem_matches = exact_matches if exact_matches else partial_matches
 
     if len(stem_matches) == 1:
         best = stem_matches[0]
     elif len(stem_matches) > 1:
-        # Multiple matches — try to narrow down
+        # Multiple matches — disambiguate by finding the input file closest in time
+        # to (but before) the output file's last_modified timestamp
         best = None
-        # Try mail_id-based narrowing (check if mail sender is in folder name)
-        if mail_id and mail_id.strip():
+
+        # Get output file's last_modified for time-based matching
+        output_last_modified = None
+        try:
+            out_resp = s3().head_object(Bucket=BUCKET, Key=output_key)
+            output_last_modified = out_resp.get("LastModified")
+        except Exception:
+            pass
+
+        if output_last_modified:
+            # Find the input file modified closest BEFORE the output file
+            # (input is always processed before output is created)
+            candidates = []
+            for it in stem_matches:
+                try:
+                    item_time = datetime.fromisoformat(it["last_modified"].replace("Z", "+00:00")) if isinstance(it["last_modified"], str) else it["last_modified"]
+                    # Make output_last_modified offset-aware if needed
+                    out_time = output_last_modified
+                    if hasattr(item_time, 'tzinfo') and item_time.tzinfo and out_time.tzinfo is None:
+                        from datetime import timezone
+                        out_time = out_time.replace(tzinfo=timezone.utc)
+                    elif hasattr(out_time, 'tzinfo') and out_time.tzinfo and (not hasattr(item_time, 'tzinfo') or item_time.tzinfo is None):
+                        from datetime import timezone
+                        item_time = item_time.replace(tzinfo=timezone.utc)
+                    diff = (out_time - item_time).total_seconds()
+                    if diff >= 0:  # input was modified before output
+                        candidates.append((it, diff))
+                except Exception:
+                    pass
+
+            if candidates:
+                # Pick the one closest in time (smallest positive diff = most recent input before output)
+                candidates.sort(key=lambda x: x[1])
+                best = candidates[0][0]
+
+        # Fallback: try mail_id-based narrowing
+        if not best and mail_id and mail_id.strip():
             mail_prefix = mail_id.strip().split("@")[0].lower()
             narrowed = [it for it in stem_matches if mail_prefix in it["key"].lower()]
             if len(narrowed) == 1:
                 best = narrowed[0]
-        # If still ambiguous, match by position in the list relative to output position
-        # (output files and input files are often processed in same order)
+
+        # Final fallback: most recently modified
         if not best:
-            # Pick the most recently modified one
             best = max(stem_matches, key=lambda x: x.get("last_modified", ""))
     else:
         best = None
