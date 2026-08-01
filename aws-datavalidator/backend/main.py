@@ -1735,28 +1735,31 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
         "dtl": [],
     }
 
-    # PMT rows first, then INV rows
+    # PMT/Receipt rows first, then INV rows
+    # PMT-like classes: PMT, PAYMENT, RECEIPT, RCT — these are UTR/payment references
+    PMT_CLASSES = ("PMT", "PAYMENT", "RECEIPT", "RCT", "PAY")
+
     for row in rows:
         if row.get("_status") == "rejected":
             continue
         class_val = str(row.get("CLASS") or "").strip().upper()
-        if class_val in ("PMT", "PAYMENT"):
+        if class_val in PMT_CLASSES:
             payload["dtl"].append({
                 "attribute1": "PMT",
                 "doc_no":  _str(row.get("TRX_NUMBER")),
                 "doc_dt":  _convert_date(row.get("TXN_DATE")),
-                "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
+                "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
                 "tds":     0.0,
                 "ded":     0.0,
                 "disc":    0.0,
-                "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+                "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
             })
 
     for row in rows:
         if row.get("_status") == "rejected":
             continue
         class_val = str(row.get("CLASS") or "").strip().upper()
-        if class_val not in ("PMT", "PAYMENT"):
+        if class_val not in PMT_CLASSES:
             payload["dtl"].append({
                 "attribute1": "INV",
                 "doc_no":  _str(row.get("TRX_NUMBER")),
@@ -1846,28 +1849,30 @@ def multi_approve(req: MultiApproveRequest):
             "dtl": [],
         }
 
-        # PMT rows first, then INV rows — all use standard doc_no/doc_dt/inv_amt fields
+        # PMT/Receipt rows first, then INV rows
+        PMT_CLASSES = ("PMT", "PAYMENT", "RECEIPT", "RCT", "PAY")
+
         for row in rows:
             if row.get("_status") == "rejected":
                 continue
             class_val = str(row.get("CLASS") or "").strip().upper()
-            if class_val in ("PMT", "PAYMENT"):
+            if class_val in PMT_CLASSES:
                 payload["dtl"].append({
                     "attribute1": "PMT",
                     "doc_no":  _str(row.get("TRX_NUMBER")),
                     "doc_dt":  _convert_date(row.get("TXN_DATE")),
-                    "inv_amt": _float(row.get("OUTSTANDING_AMT") or 0),
+                    "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
                     "tds":     0.0,
                     "ded":     0.0,
                     "disc":    0.0,
-                    "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or 0),
+                    "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
                 })
 
         for row in rows:
             if row.get("_status") == "rejected":
                 continue
             class_val = str(row.get("CLASS") or "").strip().upper()
-            if class_val not in ("PMT", "PAYMENT"):
+            if class_val not in PMT_CLASSES:
                 payload["dtl"].append({
                     "attribute1": "INV",
                     "doc_no":  _str(row.get("TRX_NUMBER")),
