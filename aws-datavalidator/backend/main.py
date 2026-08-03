@@ -1743,15 +1743,17 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
             continue
         class_val = str(row.get("CLASS") or "").strip().upper()
         if class_val in PMT_CLASSES:
+            # For PMT/Receipt rows, amount may be in PAID, APPLIED_AMT, OUTSTANDING_AMT, or RECEIPT_AMT
+            pmt_amt = _float(row.get("PAID") or row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0)
             payload["dtl"].append({
                 "attribute1": "PMT",
                 "doc_no":  _str(row.get("TRX_NUMBER")),
                 "doc_dt":  _convert_date(row.get("TXN_DATE")),
-                "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
+                "inv_amt": pmt_amt,
                 "tds":     0.0,
                 "ded":     0.0,
                 "disc":    0.0,
-                "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
+                "net":     pmt_amt,
             })
 
     for row in rows:
@@ -1856,15 +1858,16 @@ def multi_approve(req: MultiApproveRequest):
                 continue
             class_val = str(row.get("CLASS") or "").strip().upper()
             if class_val in PMT_CLASSES:
+                pmt_amt = _float(row.get("PAID") or row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0)
                 payload["dtl"].append({
                     "attribute1": "PMT",
                     "doc_no":  _str(row.get("TRX_NUMBER")),
                     "doc_dt":  _convert_date(row.get("TXN_DATE")),
-                    "inv_amt": _float(row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
+                    "inv_amt": pmt_amt,
                     "tds":     0.0,
                     "ded":     0.0,
                     "disc":    0.0,
-                    "net":     _float(row.get("APPLIED_AMT") or row.get("OUTSTANDING_AMT") or row.get("RECEIPT_AMT") or 0),
+                    "net":     pmt_amt,
                 })
 
         for row in rows:
