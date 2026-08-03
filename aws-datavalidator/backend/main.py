@@ -1587,31 +1587,24 @@ def load_multi_file(key: str = Query(..., description="S3 key of multi-output XL
         # Group rows by customer
         customers = []
         stem = Path(key).stem
-        # Check which customers are already approved/rejected
-        # Build lookup sets using both the JSON filename and the cust_name inside
+        # Check which customers from THIS FILE are already approved/rejected
+        # Only match approvals that start with this file's stem to avoid false positives
+        # from other files that may have the same customer name
         approved_keys = set()
-        approved_names = set()  # Track by customer name for shared CUST_NO scenarios
         rejected_keys = set()
-        rejected_names = set()
         try:
             for item in s3_list(APPROVED_PREFIX):
                 fname = item["name"].replace(".json", "").lower()
-                approved_keys.add(fname)
-                # Also read JSON to get cust_name for accurate matching
-                try:
-                    raw_json = s3_get(item["key"])
-                    data = json.loads(raw_json)
-                    aname = data.get("hdr", {}).get("cust_name", "").strip().lower()
-                    if aname:
-                        approved_names.add(aname)
-                except Exception:
-                    pass
+                # Only consider approvals that belong to THIS file (stem prefix match)
+                if fname.startswith(stem.lower() + "_") or fname == stem.lower():
+                    approved_keys.add(fname)
         except Exception:
             pass
         try:
             for item in s3_list(REJECT_PREFIX):
                 fname = item["name"].replace("_rejected.xlsx", "").lower()
-                rejected_keys.add(fname)
+                if fname.startswith(stem.lower() + "_") or fname == stem.lower():
+                    rejected_keys.add(fname)
         except Exception:
             pass
 
@@ -1627,10 +1620,10 @@ def load_multi_file(key: str = Query(..., description="S3 key of multi-output XL
             rows = group_df.to_dict(orient="records")
 
             # Check if this customer was already approved/rejected
-            # Match by key pattern OR by customer name (handles shared CUST_NO)
+            # Match by key pattern: {stem}_{cust_no} or {stem}_{cust_name}
             cust_key = f"{stem}_{cust_no}".replace("/", "_").replace(" ", "_").replace(".", "_").lower()
             cust_name_key = f"{stem}_{cust_name}".replace("/", "_").replace(" ", "_").replace(".", "_").lower()
-            if cust_key in approved_keys or cust_name_key in approved_keys or cust_name.strip().lower() in approved_names:
+            if cust_key in approved_keys or cust_name_key in approved_keys:
                 cust_status = "approved"
                 row_status  = "approved"
             elif cust_key in rejected_keys or cust_name_key in rejected_keys:
