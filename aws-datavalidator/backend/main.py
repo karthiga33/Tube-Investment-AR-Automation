@@ -320,9 +320,6 @@ def call_customer_api(payload: Dict) -> Dict:
             hdr["pay_amt"] = str(hdr["pay_amt"]) if hdr["pay_amt"] else "0"
         payload_to_send["hdr"] = hdr
 
-    # Wrap in "request" key as required by downstream API
-    wrapped_payload = {"request": payload_to_send}
-
     headers = {
         "Content-Type": "application/json",
         "x-api-key": CUSTOMER_API_KEY,   # API Gateway usage plan key (header)
@@ -336,13 +333,13 @@ def call_customer_api(payload: Dict) -> Dict:
 
     log.info("Calling customer API via API Gateway: %s", url)
     log.info("Request headers: %s", {k: (v[:6] + "***" if k == "x-api-key" else v) for k, v in headers.items()})
-    log.info("Request payload (first 300 chars): %s", json.dumps(wrapped_payload)[:300])
+    log.info("Request payload (first 300 chars): %s", json.dumps(payload_to_send)[:300])
 
     try:
         with httpx.Client(timeout=15.0) as client:
             resp = client.post(
                 url,
-                content=json.dumps(wrapped_payload).encode("utf-8"),
+                content=json.dumps(payload_to_send).encode("utf-8"),
                 headers=headers,
             )
         log.info(
