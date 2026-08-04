@@ -605,8 +605,9 @@ def dashboard_summary():
             status_map[stem] = {"status": "rejected", "last_modified": lm}
 
     enriched = []
-    # Build vendor name lookup from approved JSON files (they contain cust_name)
+    # Build vendor name + import_reference lookup from approved JSON files
     vendor_names: Dict[str, str] = {}
+    import_refs: Dict[str, str] = {}  # stem → import_reference
     for f in approved:
         stem = Path(f["name"]).stem.lower()
         try:
@@ -615,6 +616,9 @@ def dashboard_summary():
             name = data.get("hdr", {}).get("cust_name", "")
             if name:
                 vendor_names[stem] = name
+            imp_ref = data.get("import_reference", "") or data.get("hdr", {}).get("import_ref", "")
+            if imp_ref:
+                import_refs[stem] = str(imp_ref)
         except Exception:
             pass
 
@@ -695,7 +699,8 @@ def dashboard_summary():
                 pass
         entry      = status_map.get(clean_stem.lower())
         file_status = entry["status"] if entry else "pending"
-        enriched.append({**f, "company": company, "status": file_status, "source_type": source_type, "mail_id": mail_id})
+        imp_ref = import_refs.get(clean_stem.lower(), "")
+        enriched.append({**f, "company": company, "status": file_status, "source_type": source_type, "mail_id": mail_id, "import_reference": imp_ref})
 
     return {
         "output":   enriched,
@@ -997,9 +1002,20 @@ def approve_file(req: ApproveRequest):
     if api_result.get("response_body"):
         try:
             resp_data = json.loads(api_result["response_body"]) if isinstance(api_result["response_body"], str) else api_result["response_body"]
-            import_reference = resp_data.get("import_reference", "")
+            import_reference = str(resp_data.get("import_reference", ""))
         except (json.JSONDecodeError, AttributeError):
             pass
+
+    # Save import_reference back into the approved JSON for dashboard display
+    if import_reference and import_reference not in ("", "0", "-1", "-2"):
+        try:
+            payload["import_reference"] = import_reference
+            payload["hdr"]["import_ref"] = import_reference
+            updated_json = json.dumps(payload, indent=2, default=str).encode("utf-8")
+            s3_put(json_key, updated_json, "application/json")
+            log.info("Updated approved JSON with import_reference: %s", import_reference)
+        except Exception as e:
+            log.warning("Failed to update import_reference in JSON: %s", e)
 
     return {
         "status":     "success",

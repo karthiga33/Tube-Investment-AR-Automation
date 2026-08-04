@@ -388,13 +388,14 @@ export default function DashboardPage() {
                       active={filters.status.length > 0}
                     />
                   </th>
+                  <th className="plain-th">Import Ref</th>
                   <th className="plain-th">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="no-results">
+                    <td colSpan={9} className="no-results">
                       No files match the current filters.&nbsp;
                       <button className="btn-clear-inline" onClick={clearAll}>Clear filters</button>
                     </td>
@@ -423,6 +424,7 @@ export default function DashboardPage() {
                       <td className="meta-cell">{fmtSize(file.size)}</td>
                       <td className="meta-cell">{fmt(file.last_modified)}</td>
                       <td>{statusBadge(file.status)}</td>
+                      <td className="meta-cell import-ref-cell">{file.import_reference || '—'}</td>
                       <td>
                         <div className="row-actions">
                           {file.status !== 'pending' && (
