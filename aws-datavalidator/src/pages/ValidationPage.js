@@ -134,6 +134,10 @@ export default function ValidationPage() {
         else
           msg += `  |  Customer API: ${ar.status} (${ar.http_code || ar.reason})`;
       }
+      // Update import_ref from API response if provided
+      if (result.import_reference) {
+        setHeader(prev => ({ ...prev, import_ref: result.import_reference }));
+      }
       showToast(msg, result.api_result?.status === 'success' || result.demo_mode ? 'success' : 'warn');
       setTimeout(() => navigate('/', { state: { refresh: true } }), 1200);
     } catch (e) {

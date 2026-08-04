@@ -979,11 +979,21 @@ def approve_file(req: ApproveRequest):
                   f"http_code={api_result.get('http_code')} "
                   f"response={str(api_result.get('response_body',''))[:200]}")
 
+    # Extract import_reference from downstream API response if available
+    import_reference = ""
+    if api_result.get("response_body"):
+        try:
+            resp_data = json.loads(api_result["response_body"]) if isinstance(api_result["response_body"], str) else api_result["response_body"]
+            import_reference = resp_data.get("import_reference", "")
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
     return {
         "status":     "success",
         "demo_mode":  demo_mode,
         "s3_key":     f"s3://{BUCKET}/{json_key}",
         "api_result": api_result,
+        "import_reference": import_reference,
     }
 
 
