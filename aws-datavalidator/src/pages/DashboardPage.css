@@ -85,6 +85,25 @@
 .btn-refresh:hover { background: #f9fafb; }
 .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btn-view-all {
+  padding: 6px 14px;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.btn-view-all:hover { background: #4f46e5; }
+.btn-view-recent {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+.btn-view-recent:hover { background: #e5e7eb; }
+
 /* ── Error / loading ── */
 .error-bar {
   display: flex; align-items: center; gap: 6px;

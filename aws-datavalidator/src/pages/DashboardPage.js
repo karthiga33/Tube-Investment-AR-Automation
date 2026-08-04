@@ -138,6 +138,7 @@ export default function DashboardPage() {
   const [error,   setError]   = useState(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [viewAll, setViewAll] = useState(false);  // false = show last 2 days only
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -179,6 +180,13 @@ export default function DashboardPage() {
 
   // ── Apply all filters ─────────────────────────────────────────────────────
   const visible = files.filter(f => {
+    // Default: show only last 2 days unless viewAll is true or date filter is set
+    if (!viewAll && !filters.last_modified.from && !filters.last_modified.to) {
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      twoDaysAgo.setHours(0, 0, 0, 0);
+      if (new Date(f.last_modified) < twoDaysAgo) return false;
+    }
     if (filters.name && !f.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
     if (filters.company && !f.company.toLowerCase().includes(filters.company.toLowerCase())) return false;
     if (filters.mailId && !(f.mail_id || '').toLowerCase().includes(filters.mailId.toLowerCase())) return false;
@@ -268,7 +276,18 @@ export default function DashboardPage() {
           <div className="fh-right">
             <span className="showing-count">
               Showing {visible.length} of {files.length}
+              {!viewAll && !filters.last_modified.from && !filters.last_modified.to && ' (Last 2 days)'}
             </span>
+            {!viewAll && (
+              <button className="btn-view-all" onClick={() => setViewAll(true)}>
+                View All
+              </button>
+            )}
+            {viewAll && (
+              <button className="btn-view-all btn-view-recent" onClick={() => setViewAll(false)}>
+                Recent Only
+              </button>
+            )}
             <button className="btn-refresh" onClick={load} disabled={loading}>
               <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
             </button>
