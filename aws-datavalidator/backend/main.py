@@ -315,9 +315,12 @@ def call_customer_api(payload: Dict) -> Dict:
         hdr = dict(payload_to_send["hdr"])
         if not hdr.get("transaction_type"):
             hdr["transaction_type"] = "INSERT"
-        # Ensure pay_amt is a STRING (downstream .NET API requires System.String)
+        # Ensure pay_amt stays as number (original working format)
         if "pay_amt" in hdr:
-            hdr["pay_amt"] = str(hdr["pay_amt"]) if hdr["pay_amt"] else "0"
+            try:
+                hdr["pay_amt"] = float(hdr["pay_amt"]) if hdr["pay_amt"] else 0.0
+            except (ValueError, TypeError):
+                hdr["pay_amt"] = 0.0
         # Ensure all date fields are clean YYYY-MM-DD (no time component)
         for dt_field in ("pay_dt", "mail_dt"):
             if hdr.get(dt_field) and " " in str(hdr[dt_field]):
@@ -330,8 +333,8 @@ def call_customer_api(payload: Dict) -> Dict:
             if row.get("doc_dt") and " " in str(row["doc_dt"]):
                 row["doc_dt"] = str(row["doc_dt"]).split(" ")[0]
 
-    # Wrap in "request" key as required by downstream .NET API
-    wrapped_payload = {"request": payload_to_send}
+    # Send payload directly (no wrapper) — matches working format:
+    # {"hdr": {...}, "dtl": [...]}
 
     headers = {
         "Content-Type": "application/json",
@@ -346,13 +349,13 @@ def call_customer_api(payload: Dict) -> Dict:
 
     log.info("Calling customer API via API Gateway: %s", url)
     log.info("Request headers: %s", {k: (v[:6] + "***" if k == "x-api-key" else v) for k, v in headers.items()})
-    log.info("Request payload (first 300 chars): %s", json.dumps(wrapped_payload)[:300])
+    log.info("Request payload (first 500 chars): %s", json.dumps(payload_to_send)[:500])
 
     try:
         with httpx.Client(timeout=15.0) as client:
             resp = client.post(
                 url,
-                content=json.dumps(wrapped_payload).encode("utf-8"),
+                content=json.dumps(payload_to_send).encode("utf-8"),
                 headers=headers,
             )
         log.info(
