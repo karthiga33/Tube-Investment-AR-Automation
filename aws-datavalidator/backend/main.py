@@ -315,12 +315,9 @@ def call_customer_api(payload: Dict) -> Dict:
         hdr = dict(payload_to_send["hdr"])
         if not hdr.get("transaction_type"):
             hdr["transaction_type"] = "INSERT"
-        # Ensure pay_amt stays as number
+        # Convert pay_amt to STRING — .NET API requires System.String type
         if "pay_amt" in hdr:
-            try:
-                hdr["pay_amt"] = float(hdr["pay_amt"]) if hdr["pay_amt"] else 0.0
-            except (ValueError, TypeError):
-                hdr["pay_amt"] = 0.0
+            hdr["pay_amt"] = str(float(hdr["pay_amt"])) if hdr["pay_amt"] else "0"
         # Ensure all date fields are clean YYYY-MM-DD (no time component)
         for dt_field in ("pay_dt", "mail_dt"):
             if hdr.get(dt_field) and " " in str(hdr[dt_field]):
@@ -333,19 +330,16 @@ def call_customer_api(payload: Dict) -> Dict:
             if row.get("doc_dt") and " " in str(row["doc_dt"]):
                 row["doc_dt"] = str(row["doc_dt"]).split(" ")[0]
 
-    # Send directly — NO wrapper (API expects {"hdr":..., "dtl":...} at root)
-    final_payload = payload_to_send
+    # Wrap in "request" key — .NET API Gateway model binding requires this
+    final_payload = {"request": payload_to_send}
 
     headers = {
         "Content-Type": "application/json",
         "x-api-key": CUSTOMER_API_KEY,   # API Gateway usage plan key (header)
     }
 
-    # Also pass as query param — some API Gateway setups require it this way
+    # Use the API URL directly — API key sent only in header
     url = CUSTOMER_API_URL
-    if CUSTOMER_API_KEY and "X-Api-Key" not in url:
-        sep = "&" if "?" in url else "?"
-        url = f"{url}{sep}X-Api-Key={CUSTOMER_API_KEY}"
 
     log.info("Calling customer API via API Gateway: %s", url)
     log.info("Request headers: %s", {k: (v[:6] + "***" if k == "x-api-key" else v) for k, v in headers.items()})
