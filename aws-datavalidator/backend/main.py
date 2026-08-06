@@ -2073,3 +2073,58 @@ def delete_pdf_password(subject: str = Query(..., description="Subject to delete
     except Exception as e:
         log.error("Failed to delete PDF password: %s", e)
         raise HTTPException(500, f"Failed to delete: {str(e)}")
+
+
+# ── Oracle Status API (fetch mr_apply_status from downstream) ─────────────────
+@app.get("/api/oracle-status", tags=["Oracle Status"])
+def get_oracle_status():
+    """
+    Fetch the Oracle mr_apply_status for all approved files.
+    Calls the downstream status API and returns a map of import_reference → mr_apply_status.
+    Only returns data for approved files that have an import_reference.
+    """
+    if not CUSTOMER_API_URL:
+        return {"status": "skipped", "reason": "CUSTOMER_API_URL not set", "data": {}}
+
+    # Build the status API URL (same base, different path)
+    # CUSTOMER_API_URL = https://....../api/transactions
+    # Status URL       = https://....../api/transactions/status?from_date=...
+    status_url = CUSTOMER_API_URL.rstrip("/") + "/status"
+
+    # Use a recent from_date (last 90 days) to get all relevant statuses
+    from datetime import timedelta
+    from_date = (datetime.utcnow() - timedelta(days=90)).strftime("%Y/%m/%d %H:%M:%S")
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": CUSTOMER_API_KEY,
+    }
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.get(
+                status_url,
+                params={"from_date": from_date},
+                headers=headers,
+            )
+        resp.raise_for_status()
+        result = resp.json()
+
+        # Build a lookup map: import_reference → mr_apply_status
+        status_map = {}
+        if result.get("data") and isinstance(result["data"], list):
+            for item in result["data"]:
+                ref = item.get("import_reference", "")
+                mr_status = item.get("mr_apply_status", "")
+                if ref and mr_status:
+                    status_map[ref] = mr_status
+
+        log.info("Oracle status fetched: %d records", len(status_map))
+        return {"status": "success", "data": status_map}
+
+    except httpx.HTTPStatusError as e:
+        log.error("Oracle status API HTTP error [%s]: %s", e.response.status_code, e.response.text[:200])
+        return {"status": "error", "reason": f"HTTP {e.response.status_code}", "data": {}}
+    except httpx.RequestError as e:
+        log.error("Oracle status API network error: %s", str(e))
+        return {"status": "error", "reason": str(e), "data": {}}

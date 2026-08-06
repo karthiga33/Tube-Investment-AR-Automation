@@ -42,6 +42,9 @@ export const api = {
   multiRejectFile:          (body)    => req("/api/file/multi-reject",           { method: "POST", body: JSON.stringify(body) }),
   multiFindInput:           (outKey)  => req(`/api/file/multi-find-input?output_key=${encodeURIComponent(outKey)}`),
 
+  // ── Oracle Status ────────────────────────────────────────────────────────────
+  oracleStatus:             ()        => req("/api/oracle-status"),
+
   // ── Rejected Emails ────────────────────────────────────────────────────────
   listRejectedEmails:       ()        => req("/api/rejected-emails"),
 

@@ -139,6 +139,7 @@ export default function DashboardPage() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [showDeleted, setShowDeleted] = useState(false);
   const [viewAll, setViewAll] = useState(false);  // false = show last 2 days only
+  const [oracleStatusMap, setOracleStatusMap] = useState({});  // import_reference → mr_apply_status
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -164,6 +165,16 @@ export default function DashboardPage() {
         .sort((a, b) => new Date(b.last_modified) - new Date(a.last_modified));
       setFiles(allFiles);
       setDeleted(d.deleted || []);
+
+      // Fetch Oracle status for approved files
+      try {
+        const oracleResp = await api.oracleStatus();
+        if (oracleResp.status === 'success' && oracleResp.data) {
+          setOracleStatusMap(oracleResp.data);
+        }
+      } catch (oracleErr) {
+        console.warn('Oracle status fetch failed:', oracleErr);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -389,13 +400,14 @@ export default function DashboardPage() {
                     />
                   </th>
                   <th className="plain-th">Import Ref</th>
+                  <th className="plain-th">Oracle Status</th>
                   <th className="plain-th">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="no-results">
+                    <td colSpan={10} className="no-results">
                       No files match the current filters.&nbsp;
                       <button className="btn-clear-inline" onClick={clearAll}>Clear filters</button>
                     </td>
@@ -425,6 +437,14 @@ export default function DashboardPage() {
                       <td className="meta-cell">{fmt(file.last_modified)}</td>
                       <td>{statusBadge(file.status)}</td>
                       <td className="meta-cell import-ref-cell">{file.import_reference || '—'}</td>
+                      <td className="meta-cell oracle-status-cell">
+                        {file.import_reference && oracleStatusMap[file.import_reference]
+                          ? <span className={`oracle-badge oracle-badge-${oracleStatusMap[file.import_reference].toLowerCase().replace(/\s+/g, '-')}`}>
+                              {oracleStatusMap[file.import_reference]}
+                            </span>
+                          : '—'
+                        }
+                      </td>
                       <td>
                         <div className="row-actions">
                           {file.status !== 'pending' && (
