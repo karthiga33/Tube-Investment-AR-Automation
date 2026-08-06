@@ -127,6 +127,8 @@ const DEFAULT_FILTERS = {
   fileType:      [],            // [] = show all
   status:        [],           // [] = show all
   last_modified: { from: '', to: '' },
+  importRef:     '',
+  oracleStatus:  [],           // [] = show all
 };
 
 export default function DashboardPage() {
@@ -212,6 +214,11 @@ export default function DashboardPage() {
       to.setHours(23, 59, 59, 999);
       if (new Date(f.last_modified) > to) return false;
     }
+    if (filters.importRef && !(f.import_reference || '').toLowerCase().includes(filters.importRef.toLowerCase())) return false;
+    if (filters.oracleStatus.length > 0) {
+      const oStatus = (f.import_reference && oracleStatusMap[f.import_reference]) || '';
+      if (!filters.oracleStatus.includes(oStatus)) return false;
+    }
     return true;
   });
 
@@ -222,7 +229,9 @@ export default function DashboardPage() {
     filters.fileType.length > 0 ||
     filters.status.length > 0 ||
     filters.last_modified.from !== '' ||
-    filters.last_modified.to !== '';
+    filters.last_modified.to !== '' ||
+    filters.importRef !== '' ||
+    filters.oracleStatus.length > 0;
 
   const counts = {
     total:    files.length,
@@ -399,8 +408,31 @@ export default function DashboardPage() {
                       active={filters.status.length > 0}
                     />
                   </th>
-                  <th className="plain-th">Import Ref</th>
-                  <th className="plain-th">Oracle Status</th>
+                  <th>
+                    <ColFilter
+                      label="Import Ref"
+                      type="text"
+                      value={filters.importRef}
+                      onChange={v => setFilter('importRef', v)}
+                      onClear={() => clearFilter('importRef')}
+                      active={filters.importRef !== ''}
+                    />
+                  </th>
+                  <th>
+                    <ColFilter
+                      label="Oracle Status"
+                      type="checkbox"
+                      options={[
+                        { value: 'NEW',                label: 'NEW'                },
+                        { value: 'PROCESSED',          label: 'PROCESSED'          },
+                        { value: 'MULTIPLE PAYMENTS',  label: 'MULTIPLE PAYMENTS'  },
+                      ]}
+                      value={filters.oracleStatus}
+                      onChange={v => setFilter('oracleStatus', v)}
+                      onClear={() => clearFilter('oracleStatus')}
+                      active={filters.oracleStatus.length > 0}
+                    />
+                  </th>
                   <th className="plain-th">Action</th>
                 </tr>
               </thead>
