@@ -364,3 +364,48 @@
 .oracle-badge:not(.oracle-badge-processed):not(.oracle-badge-new):not(.oracle-badge-error):not(.oracle-badge-pending) {
   background: #f3f4f6; color: #4b5563;
 }
+
+
+/* ── Global Date Range Filter Bar ── */
+.date-range-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 20px;
+  border: 1px solid #e5e9f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.date-range-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+}
+.date-range-input {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1f2937;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.date-range-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.1);
+}
+.btn-date-reset {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn-date-reset:hover {
+  background: #e5e7eb;
+}

@@ -119,6 +119,14 @@ function ColFilter({ label, type, options, value, onChange, onClear, active }) {
   );
 }
 
+// ── Helper: get yesterday and today as YYYY-MM-DD ─────────────────────────────
+const getYesterday = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+};
+const getToday = () => new Date().toISOString().split('T')[0];
+
 // ── Default filter state ──────────────────────────────────────────────────────
 const DEFAULT_FILTERS = {
   name:          '',
@@ -140,7 +148,7 @@ export default function DashboardPage() {
   const [error,   setError]   = useState(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [showDeleted, setShowDeleted] = useState(false);
-  const [viewAll, setViewAll] = useState(false);  // false = show last 2 days only
+  const [dateRange, setDateRange] = useState({ from: getYesterday(), to: getToday() });
   const [oracleStatusMap, setOracleStatusMap] = useState({});  // import_reference → mr_apply_status
 
   const load = useCallback(async () => {
@@ -193,12 +201,16 @@ export default function DashboardPage() {
 
   // ── Apply all filters ─────────────────────────────────────────────────────
   const visible = files.filter(f => {
-    // Default: show only last 2 days unless viewAll is true or date filter is set
-    if (!viewAll && !filters.last_modified.from && !filters.last_modified.to) {
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      twoDaysAgo.setHours(0, 0, 0, 0);
-      if (new Date(f.last_modified) < twoDaysAgo) return false;
+    // Global date range filter (from/to at top of dashboard)
+    if (dateRange.from) {
+      const from = new Date(dateRange.from);
+      from.setHours(0, 0, 0, 0);
+      if (new Date(f.last_modified) < from) return false;
+    }
+    if (dateRange.to) {
+      const to = new Date(dateRange.to);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(f.last_modified) > to) return false;
     }
     if (filters.name && !f.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
     if (filters.company && !f.company.toLowerCase().includes(filters.company.toLowerCase())) return false;
@@ -234,10 +246,10 @@ export default function DashboardPage() {
     filters.oracleStatus.length > 0;
 
   const counts = {
-    total:    files.length,
-    pending:  files.filter(f => f.status === 'pending').length,
-    approved: files.filter(f => f.status === 'approved').length,
-    rejected: files.filter(f => f.status === 'rejected').length,
+    total:    visible.length,
+    pending:  visible.filter(f => f.status === 'pending').length,
+    approved: visible.filter(f => f.status === 'approved').length,
+    rejected: visible.filter(f => f.status === 'rejected').length,
     deleted:  deleted.length,
   };
 
@@ -272,6 +284,27 @@ export default function DashboardPage() {
   return (
     <div className="dashboard-page">
 
+      {/* ── Global Date Range Filter ── */}
+      <div className="date-range-bar">
+        <label className="date-range-label">From Date</label>
+        <input
+          type="date"
+          className="date-range-input"
+          value={dateRange.from}
+          onChange={e => setDateRange(d => ({ ...d, from: e.target.value }))}
+        />
+        <label className="date-range-label">To Date</label>
+        <input
+          type="date"
+          className="date-range-input"
+          value={dateRange.to}
+          onChange={e => setDateRange(d => ({ ...d, to: e.target.value }))}
+        />
+        <button className="btn-date-reset" onClick={() => setDateRange({ from: getYesterday(), to: getToday() })}>
+          Reset
+        </button>
+      </div>
+
       {/* ── Summary cards ── */}
       <div className="summary-cards">
         <SummaryCard label="Total Files" value={counts.total}    color="blue"   onClick={() => { clearAll(); setShowDeleted(false); }} />
@@ -296,18 +329,11 @@ export default function DashboardPage() {
           <div className="fh-right">
             <span className="showing-count">
               Showing {visible.length} of {files.length}
-              {!viewAll && !filters.last_modified.from && !filters.last_modified.to && ' (Last 2 days)'}
             </span>
-            {!viewAll && (
-              <button className="btn-view-all" onClick={() => setViewAll(true)}>
-                View All
-              </button>
-            )}
-            {viewAll && (
-              <button className="btn-view-all btn-view-recent" onClick={() => setViewAll(false)}>
-                Recent Only
-              </button>
-            )}
+            <button className="btn-refresh" onClick={load} disabled={loading}>
+              <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
+            </button>
+          </div>
             <button className="btn-refresh" onClick={load} disabled={loading}>
               <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
             </button>
