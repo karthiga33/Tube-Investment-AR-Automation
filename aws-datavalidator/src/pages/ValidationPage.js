@@ -14,7 +14,7 @@ export default function ValidationPage() {
   const fileName   = state?.fileName   || '';
   const company    = state?.company    || '';
   const fileStatus = state?.fileStatus || 'pending';
-  const isLocked   = fileStatus === 'approved' || fileStatus === 'rejected';
+  const initialLocked = fileStatus === 'approved' || fileStatus === 'rejected';
 
   const [header,       setHeader]       = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -23,6 +23,8 @@ export default function ValidationPage() {
   const [submitting,   setSubmitting]   = useState(false);
   const [toast,        setToast]        = useState(null);
   const [inputFile,    setInputFile]    = useState(null);
+  const [isLocked,     setIsLocked]     = useState(initialLocked);
+  const [pendingFiles, setPendingFiles] = useState([]);  // list of pending file keys for "Next" navigation
 
   // Debounce ref for auto-save — prevents an API call on every single row click
   const saveTimer = useRef(null);
@@ -71,6 +73,23 @@ export default function ValidationPage() {
   }, [fileKey, navigate]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Fetch pending files list for "Next" button navigation
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const d = await api.dashboard();
+        const pending = (d.output || [])
+          .filter(f => f.status === 'pending')
+          .sort((a, b) => new Date(b.last_modified) - new Date(a.last_modified))
+          .map(f => ({ key: f.key, name: f.name, company: f.company }));
+        setPendingFiles(pending);
+      } catch (e) {
+        setPendingFiles([]);
+      }
+    };
+    fetchPending();
+  }, []);
 
   // Auto-save on transaction change — debounced
   const handleTransactionChange = useCallback((updated) => {
@@ -139,13 +158,16 @@ export default function ValidationPage() {
         setHeader(prev => ({ ...prev, import_ref: result.import_reference }));
       }
       showToast(msg, result.api_result?.status === 'success' || result.demo_mode ? 'success' : 'warn');
-      setTimeout(() => navigate('/', { state: { refresh: true } }), 1200);
+      // Stay on page in read-only mode instead of navigating away
+      setIsLocked(true);
+      // Remove current file from pending list
+      setPendingFiles(prev => prev.filter(f => f.key !== fileKey));
     } catch (e) {
       showToast(`Approve failed: ${e.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
-  }, [fileKey, header, transactions, pendingCount, flushSave, navigate]);
+  }, [fileKey, header, transactions, pendingCount, flushSave]);
 
   // ── Reject all → POST /api/file/reject ──────────────────────────────────────
   const handleReject = useCallback(async () => {
@@ -164,13 +186,31 @@ export default function ValidationPage() {
           : `Rejected → ${result.s3_key}`,
         'warn'
       );
-      setTimeout(() => navigate('/', { state: { refresh: true } }), 1200);
+      // Stay on page in read-only mode instead of navigating away
+      setIsLocked(true);
+      // Remove current file from pending list
+      setPendingFiles(prev => prev.filter(f => f.key !== fileKey));
     } catch (e) {
       showToast(`Reject failed: ${e.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
-  }, [fileKey, header, transactions, flushSave, navigate]);
+  }, [fileKey, header, transactions, flushSave]);
+
+  // ── Navigate to next pending file ─────────────────────────────────────────────
+  const handleNext = useCallback(() => {
+    if (pendingFiles.length > 0) {
+      const next = pendingFiles[0];
+      navigate('/validate', {
+        state: { fileKey: next.key, fileName: next.name, company: next.company, fileStatus: 'pending' },
+        replace: true,
+      });
+      // Force re-render by reloading window (since same route)
+      window.location.reload();
+    } else {
+      navigate('/', { state: { refresh: true } });
+    }
+  }, [pendingFiles, navigate]);
 
   if (!fileKey) return null;
 
@@ -206,9 +246,19 @@ export default function ValidationPage() {
           <span className="count-badge badge-yellow">{pendingCount} PENDING</span>
 
           {isLocked ? (
-            <span className="locked-badge">
-              {fileStatus === 'approved' ? '✓ Approved (Read Only)' : '✗ Rejected (Read Only)'}
-            </span>
+            <>
+              <span className="locked-badge">
+                {fileStatus === 'approved' || !initialLocked ? '✓ Approved (Read Only)' : '✗ Rejected (Read Only)'}
+              </span>
+              <button
+                className={`btn-next-file ${pendingFiles.length === 0 ? 'btn-next-disabled' : ''}`}
+                onClick={handleNext}
+                disabled={pendingFiles.length === 0 && initialLocked}
+                title={pendingFiles.length > 0 ? `Next pending file (${pendingFiles.length} remaining)` : 'No more pending files'}
+              >
+                Next →
+              </button>
+            </>
           ) : (
             <>
               <button

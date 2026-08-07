@@ -165,3 +165,26 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+
+/* ── Next File button ── */
+.btn-next-file {
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.12s, opacity 0.12s;
+}
+.btn-next-file:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.btn-next-file:disabled,
+.btn-next-disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
