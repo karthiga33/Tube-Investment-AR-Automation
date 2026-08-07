@@ -1459,17 +1459,23 @@ def list_multi_output_files():
     approved_names = set()  # cust_name from approved JSONs
     approved_keys = set()   # file stems in Approved/
     rejected_keys = set()   # file stems in Reject/
+    approved_import_refs = {}  # cust_name_lower → import_reference
     try:
         for item in s3_list(APPROVED_PREFIX):
             fname = item["name"].replace(".json", "").lower()
             approved_keys.add(fname)
-            # Read JSON to get actual customer name
+            # Read JSON to get actual customer name and import_reference
             try:
                 raw_json = s3_get(item["key"])
                 data = json.loads(raw_json)
                 aname = data.get("hdr", {}).get("cust_name", "").strip().lower()
                 if aname:
                     approved_names.add(aname)
+                # Get import_reference
+                imp_ref = data.get("import_reference", "") or data.get("hdr", {}).get("import_ref", "")
+                if imp_ref:
+                    approved_import_refs[aname] = str(imp_ref)
+                    approved_import_refs[fname] = str(imp_ref)
             except Exception:
                 pass
     except Exception:
@@ -1510,12 +1516,15 @@ def list_multi_output_files():
                             cust_status = "rejected"
                         else:
                             cust_status = "pending"
+                        # Get import_reference for this customer
+                        cust_imp_ref = approved_import_refs.get(cust_name.strip().lower(), "") or approved_import_refs.get(cust_key, "")
                         result.append({
                             **it,
                             "company": cust_name,
                             "status": cust_status,
                             "source_type": "MULTI",
                             "mail_id": mail_id,
+                            "import_reference": cust_imp_ref,
                         })
                     continue
         except Exception:
