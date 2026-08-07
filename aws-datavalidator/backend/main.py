@@ -1820,10 +1820,29 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
     api_result = call_customer_api(payload)
     log.info("Customer API result for %s: %s", cust_name, api_result)
 
+    # Extract import_reference from downstream API response and save back
+    import_reference = ""
+    if api_result.get("response_body"):
+        try:
+            resp_data = json.loads(api_result["response_body"]) if isinstance(api_result["response_body"], str) else api_result["response_body"]
+            import_reference = str(resp_data.get("import_reference", ""))
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    if import_reference and import_reference not in ("", "0", "-1", "-2"):
+        try:
+            payload["import_reference"] = import_reference
+            payload["hdr"]["import_ref"] = import_reference
+            updated_json = json.dumps(payload, indent=2, default=str).encode("utf-8")
+            s3_put(json_key, updated_json, "application/json")
+            log.info("Updated multi-customer JSON with import_reference: %s", import_reference)
+        except Exception as e:
+            log.warning("Failed to update import_reference in multi JSON: %s", e)
+
     return {
         "status":     "success",
         "s3_key":     f"s3://{BUCKET}/{json_key}",
         "api_result": api_result,
+        "import_reference": import_reference,
     }
 
 
@@ -1925,7 +1944,24 @@ def multi_approve(req: MultiApproveRequest):
         try:
             s3_put(json_key, json.dumps(payload, indent=2, default=str).encode(), "application/json")
             api_result = call_customer_api(payload)
-            results.append({"cust_no": cust_no, "cust_name": cust_name, "s3_key": f"s3://{BUCKET}/{json_key}", "api_result": api_result})
+            # Extract import_reference from downstream API response and save back
+            import_reference = ""
+            if api_result.get("response_body"):
+                try:
+                    resp_data = json.loads(api_result["response_body"]) if isinstance(api_result["response_body"], str) else api_result["response_body"]
+                    import_reference = str(resp_data.get("import_reference", ""))
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+            if import_reference and import_reference not in ("", "0", "-1", "-2"):
+                try:
+                    payload["import_reference"] = import_reference
+                    payload["hdr"]["import_ref"] = import_reference
+                    updated_json = json.dumps(payload, indent=2, default=str).encode("utf-8")
+                    s3_put(json_key, updated_json, "application/json")
+                    log.info("Updated multi-customer JSON with import_reference: %s", import_reference)
+                except Exception as e:
+                    log.warning("Failed to update import_reference in multi JSON: %s", e)
+            results.append({"cust_no": cust_no, "cust_name": cust_name, "s3_key": f"s3://{BUCKET}/{json_key}", "api_result": api_result, "import_reference": import_reference})
             log.info("Multi-customer approved: %s → %s | API: %s", cust_name, json_key, api_result.get("status"))
         except HTTPException as exc:
             if exc.status_code == 503:
