@@ -334,10 +334,6 @@ export default function DashboardPage() {
               <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
             </button>
           </div>
-            <button className="btn-refresh" onClick={load} disabled={loading}>
-              <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
-            </button>
-          </div>
         </div>
 
         {error && (
