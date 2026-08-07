@@ -330,6 +330,9 @@ export default function DashboardPage() {
             <span className="showing-count">
               Showing {visible.length} of {files.length}
             </span>
+            <button className="btn-view-all" onClick={() => setDateRange({ from: '', to: '' })}>
+              View All
+            </button>
             <button className="btn-refresh" onClick={load} disabled={loading}>
               <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
             </button>
