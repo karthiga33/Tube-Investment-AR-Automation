@@ -1507,23 +1507,27 @@ def list_multi_output_files():
                 names = [str(n).strip() for n in names if str(n).strip()]
                 if names:
                     for cust_name in names:
-                        # Determine per-customer status
+                        # Determine per-customer status.
+                        # For multi-customer files each customer is approved
+                        # individually and saved as
+                        # Approved/{file_stem}_{cust_name_safe}.json, so the
+                        # ONLY reliable identity is the file+customer specific
+                        # key. We must NOT match purely on customer name because
+                        # the same customer name can appear across many different
+                        # multi-customer files and would collide.
                         cust_name_safe = cust_name.replace("/", "_").replace(" ", "_").replace(".", "_")
                         cust_key = f"{file_stem}_{cust_name_safe}".lower()
-                        if cust_name.strip().lower() in approved_names or cust_key in approved_keys:
+                        if cust_key in approved_keys:
                             cust_status = "approved"
                         elif cust_key in rejected_keys:
                             cust_status = "rejected"
                         else:
                             cust_status = "pending"
-                        # Get import_reference for this customer.
-                        # Look up by the file+customer specific key FIRST so that
-                        # multiple files sharing the same customer name do not
-                        # collide and show the same import_reference. Only fall
-                        # back to the customer-name key when no specific match exists.
+                        # Import reference is per-customer: take it strictly from
+                        # this customer's own approved JSON (keyed by cust_key).
+                        # No customer-name fallback — that would leak another
+                        # customer's / another file's import_reference.
                         cust_imp_ref = approved_import_refs.get(cust_key, "")
-                        if not cust_imp_ref and cust_status == "approved":
-                            cust_imp_ref = approved_import_refs.get(cust_name.strip().lower(), "")
                         result.append({
                             **it,
                             "company": cust_name,
