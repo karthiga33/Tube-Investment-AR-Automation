@@ -1516,8 +1516,14 @@ def list_multi_output_files():
                             cust_status = "rejected"
                         else:
                             cust_status = "pending"
-                        # Get import_reference for this customer
-                        cust_imp_ref = approved_import_refs.get(cust_name.strip().lower(), "") or approved_import_refs.get(cust_key, "")
+                        # Get import_reference for this customer.
+                        # Look up by the file+customer specific key FIRST so that
+                        # multiple files sharing the same customer name do not
+                        # collide and show the same import_reference. Only fall
+                        # back to the customer-name key when no specific match exists.
+                        cust_imp_ref = approved_import_refs.get(cust_key, "")
+                        if not cust_imp_ref and cust_status == "approved":
+                            cust_imp_ref = approved_import_refs.get(cust_name.strip().lower(), "")
                         result.append({
                             **it,
                             "company": cust_name,
