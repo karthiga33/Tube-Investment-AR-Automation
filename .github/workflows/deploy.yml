@@ -1,4 +1,4 @@
-name: Deploy Frontend to EC2
+name: Deploy to EC2
 
 on:
   push:
@@ -7,12 +7,13 @@ on:
       - 'aws-datavalidator/src/**'
       - 'aws-datavalidator/public/**'
       - 'aws-datavalidator/package.json'
+      - 'aws-datavalidator/backend/**'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy Frontend to EC2
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.APP_HOST }}
@@ -22,8 +23,23 @@ jobs:
           proxy_username: ${{ secrets.JUMP_USER }}
           proxy_key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd ~/Tube-Project
             git pull origin main
+
+            # ── Frontend: install deps + rebuild ────────────────────────────
             cd aws-datavalidator
             npm install
             npm run build
+
+            # ── Backend: install deps + restart uvicorn ─────────────────────
+            cd backend
+            pip install -r requirements.txt || true
+            # Stop any running backend on port 8000
+            pkill -f "uvicorn main:app" || true
+            sleep 2
+            # Start backend fresh (detached, survives SSH session close)
+            nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > nohup.out 2>&1 &
+            sleep 3
+            echo "── Backend startup log ──"
+            tail -n 15 nohup.out || true
