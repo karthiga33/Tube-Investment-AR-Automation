@@ -1856,6 +1856,25 @@ def multi_customer_approve(req: MultiCustomerApproveRequest):
             log.info("Updated multi-customer JSON with import_reference: %s", import_reference)
         except Exception as e:
             log.warning("Failed to update import_reference in multi JSON: %s", e)
+    else:
+        # Downstream call failed (network/504) or returned no valid
+        # import_reference. Do NOT leave the file locked as "approved" with
+        # a blank import_ref — remove the saved JSON so the customer stays
+        # re-approvable. It only becomes read-only once a real
+        # import_reference is captured.
+        log.warning(
+            "No valid import_reference for %s (api status=%s). Rolling back "
+            "approval so it can be re-approved.",
+            cust_name, api_result.get("status"),
+        )
+        s3_delete(json_key)
+        return {
+            "status":     "api_error",
+            "message":    f"Approval to downstream failed for {cust_name}. Please re-approve.",
+            "s3_key":     f"s3://{BUCKET}/{json_key}",
+            "api_result": api_result,
+            "import_reference": "",
+        }
 
     return {
         "status":     "success",
@@ -1980,8 +1999,19 @@ def multi_approve(req: MultiApproveRequest):
                     log.info("Updated multi-customer JSON with import_reference: %s", import_reference)
                 except Exception as e:
                     log.warning("Failed to update import_reference in multi JSON: %s", e)
-            results.append({"cust_no": cust_no, "cust_name": cust_name, "s3_key": f"s3://{BUCKET}/{json_key}", "api_result": api_result, "import_reference": import_reference})
-            log.info("Multi-customer approved: %s → %s | API: %s", cust_name, json_key, api_result.get("status"))
+                results.append({"cust_no": cust_no, "cust_name": cust_name, "s3_key": f"s3://{BUCKET}/{json_key}", "api_result": api_result, "import_reference": import_reference})
+                log.info("Multi-customer approved: %s → %s | API: %s", cust_name, json_key, api_result.get("status"))
+            else:
+                # Downstream failed / no valid import_reference — roll back the
+                # saved JSON so this customer stays re-approvable rather than
+                # being permanently locked as approved with a blank import_ref.
+                log.warning(
+                    "No valid import_reference for %s (api status=%s). Rolling "
+                    "back approval so it can be re-approved.",
+                    cust_name, api_result.get("status"),
+                )
+                s3_delete(json_key)
+                results.append({"cust_no": cust_no, "cust_name": cust_name, "status": "api_error", "api_result": api_result, "import_reference": ""})
         except HTTPException as exc:
             if exc.status_code == 503:
                 results.append({"cust_no": cust_no, "cust_name": cust_name, "s3_key": json_key, "demo_mode": True})
