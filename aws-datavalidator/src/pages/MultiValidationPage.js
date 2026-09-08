@@ -140,12 +140,35 @@ export default function MultiValidationPage() {
         input_key: fileKey,
         customers: stripMeta(toSend),
       });
-      const count = result.customers?.length || 0;
-      const alreadyCount = (result.customers || []).filter(c => c.status === 'already_approved').length;
-      if (alreadyCount > 0 && alreadyCount === count) {
+      const list = result.customers || [];
+      const count = list.length;
+      const alreadyCount = list.filter(c => c.status === 'already_approved').length;
+      // A customer only counts as truly approved (read-only) when it captured
+      // an import_reference. Those that failed downstream (api_error / blank
+      // import_reference) were rolled back by the backend and remain
+      // re-approvable.
+      const failed = list.filter(c => {
+        if (c.status === 'already_approved') return false;
+        const ref = c.import_reference;
+        const gotRef = ref && !['', '0', '-1', '-2'].includes(String(ref));
+        return c.status === 'api_error' || !gotRef;
+      });
+      const okCount = count - alreadyCount - failed.length;
+
+      if (failed.length > 0) {
+        const names = failed.map(c => c.cust_name).join(', ');
+        showToast(
+          `${okCount} approved. ${failed.length} did not get an import reference and remain pending — please re-approve: ${names}`,
+          'error'
+        );
+        // Re-mark failed customers as pending so they stay re-approvable
+        setCustomers(prev => prev.map(c =>
+          failed.some(f => f.cust_name === c.cust_name) ? { ...c, status: 'pending' } : c
+        ));
+      } else if (alreadyCount > 0 && alreadyCount === count) {
         showToast('All customers were already approved previously.', 'warn');
       } else {
-        showToast(`${count - alreadyCount} customer(s) approved and sent ✓`);
+        showToast(`${okCount} customer(s) approved and sent ✓`);
         setTimeout(() => navigate('/'), 1200);
       }
     } catch (e) {
@@ -188,19 +211,36 @@ export default function MultiValidationPage() {
       }
 
       const apiStatus = result.api_result?.status;
+      const importRef = result.import_reference;
+      const gotImportRef = importRef && !['', '0', '-1', '-2'].includes(String(importRef));
+
+      // Only lock the customer as approved (read-only) when the downstream
+      // call succeeded AND an import_reference was captured. If the downstream
+      // failed (network/504) or returned no import_reference, the backend has
+      // already rolled back the approval — so keep this customer pending and
+      // re-approvable rather than showing a false "approved" state.
+      if (result.status === 'api_error' || (apiStatus !== 'skipped' && !gotImportRef)) {
+        updateCustomer(idx, { ...cust, status: 'pending' });
+        showToast(
+          `${cust.cust_name}: reconciliation did not complete (no import reference). Please re-approve.`,
+          'error'
+        );
+        return;
+      }
+
+      // Success — record the import reference and keep as approved (read-only)
+      updateCustomer(idx, { ...approved, import_reference: importRef || '' });
       showToast(
-        apiStatus === 'success'
-          ? `${cust.cust_name} approved ✓`
-          : apiStatus === 'skipped'
+        apiStatus === 'skipped'
           ? `${cust.cust_name} approved (API not configured)`
-          : `${cust.cust_name} approved — API: ${apiStatus}`,
-        apiStatus === 'success' || apiStatus === 'skipped' ? 'success' : 'warn'
+          : `${cust.cust_name} approved ✓  (Import Ref: ${importRef})`,
+        'success'
       );
     } catch (e) {
       console.error('Approve error:', e);
-      // Revert status on failure
-      updateCustomer(idx, { ...cust });
-      showToast(`Approve failed: ${e.message}`, 'error');
+      // Revert status on failure so the customer stays re-approvable
+      updateCustomer(idx, { ...cust, status: 'pending' });
+      showToast(`Approve failed: ${e.message}. Please re-approve.`, 'error');
     }
   };
 
