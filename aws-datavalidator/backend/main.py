@@ -404,7 +404,6 @@ def build_excel(header: Dict, transactions: List[Dict]) -> bytes:
             "UTR_REFERENCE": header.get("utr", ""),
             "SOURCE":        header.get("src", ""),
             "CUSTOMER_CODE": header.get("cust_code", ""),
-            "A1":            header.get("a1", ""),
         }])
         hdr_df.to_excel(writer, index=False, sheet_name="Header")
 
@@ -412,6 +411,7 @@ def build_excel(header: Dict, transactions: List[Dict]) -> bytes:
         dtl_df = pd.DataFrame([{
             "INVOICE_NO":  t.get("doc_no", ""),
             "DATE":        t.get("doc_dt", ""),
+            "A1":          t.get("a1", ""),
             "GROSS":       t.get("inv_amt", 0),
             "TDS":         t.get("tds", 0),
             "DEDUCTION":   t.get("ded", 0),
@@ -444,12 +444,12 @@ class PaymentHeader(BaseModel):
     mail_dt:          Optional[str]   = None
     import_ref:       Optional[str]   = ""
     cust_payment_id:  Optional[str]   = ""
-    a1:               Optional[str]   = ""
 
 
 class Transaction(BaseModel):
     doc_no:  Optional[str]   = ""
     doc_dt:  Optional[str]   = ""
+    a1:      Optional[str]   = ""
     inv_amt: Optional[float] = 0.0
     tds:     Optional[float] = 0.0
     ded:     Optional[float] = 0.0
@@ -780,12 +780,12 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "mail_dt":     _str(r.get("MAIL_RECEIVED_DATE", "")) or None,
                     "import_ref":  _str(r.get("IMPORT_REFERENCE", "")),
                     "cust_payment_id": _str(r.get("CUST_PAYMENT_ID", "")),
-                    "a1":          _str(r.get("A1", "")) or _str(r.get("ATTRIBUTE1", "")),
                 }
             for _, r in dtl_df.iterrows():
                 transactions.append({
                     "doc_no":  _str(r.get("INVOICE_NO")),
                     "doc_dt":  _str(r.get("DATE")),
+                    "a1":      _str(r.get("A1", "")) or _str(r.get("ATTRIBUTE1", "")),
                     "inv_amt": _float(r.get("GROSS")),
                     "tds":     _float(r.get("TDS")),
                     "ded":     _float(r.get("DEDUCTION")),
@@ -816,12 +816,12 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "mail_dt":     _str(r0.get("MAIL_RECEIVED_DATE")) or None,
                     "import_ref":  _str(r0.get("IMPORT_REFERENCE", "")),
                     "cust_payment_id": _str(r0.get("CUST_PAYMENT_ID", "")),
-                    "a1":          _str(r0.get("A1", "")) or _str(r0.get("ATTRIBUTE1", "")),
                 }
                 for _, r in rem.iterrows():
                     transactions.append({
                         "doc_no":  _str(r.get("DOCUMENT_NUMBER")),
                         "doc_dt":  _str(r.get("DOCUMENT_DATE")),
+                        "a1":      _str(r.get("A1", "")) or _str(r.get("ATTRIBUTE1", "")),
                         "inv_amt": _float(r.get("INVOICE_AMOUNT")),
                         "tds":     _float(r.get("TDS_AMOUNT")),
                         "ded":     _float(r.get("DEDUCTION_AMOUNT")),
@@ -898,12 +898,12 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "mail_dt":     _str(r0.get(mdt_col))  if mdt_col  else None,
                     "import_ref":  _str(r0.get(ref_col))  if ref_col  else "",
                     "cust_payment_id": _str(r0.get(cpid_col)) if cpid_col else "",
-                    "a1":          _str(r0.get(a1_col))   if a1_col   else "",
                 }
                 for _, r in df.iterrows():
                     transactions.append({
                         "doc_no":  _str(r.get(doc_col))  if doc_col  else "",
                         "doc_dt":  _str(r.get(ddt_col))  if ddt_col  else "",
+                        "a1":      _str(r.get(a1_col))   if a1_col   else "",
                         "inv_amt": _float(r.get(inv_col)) if inv_col else 0.0,
                         "tds":     _float(r.get(tds_col)) if tds_col else 0.0,
                         "ded":     _float(r.get(ded_col)) if ded_col else 0.0,
@@ -958,12 +958,12 @@ def approve_file(req: ApproveRequest):
             "mail_dt":         _convert_date(req.header.mail_dt) or None,
             "import_ref":      req.header.import_ref or "",
             "cust_payment_id": req.header.cust_payment_id or "",
-            "a1":              req.header.a1 or "",
         },
         "dtl": [
             {
                 "doc_no":  t.doc_no,
                 "doc_dt":  _convert_date(t.doc_dt),
+                "a1":      t.a1 or "",
                 "inv_amt": t.inv_amt,
                 "tds":     t.tds,
                 "ded":     t.ded,
