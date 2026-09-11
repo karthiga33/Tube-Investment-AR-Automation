@@ -404,6 +404,7 @@ def build_excel(header: Dict, transactions: List[Dict]) -> bytes:
             "UTR_REFERENCE": header.get("utr", ""),
             "SOURCE":        header.get("src", ""),
             "CUSTOMER_CODE": header.get("cust_code", ""),
+            "A1":            header.get("a1", ""),
         }])
         hdr_df.to_excel(writer, index=False, sheet_name="Header")
 
@@ -443,6 +444,7 @@ class PaymentHeader(BaseModel):
     mail_dt:          Optional[str]   = None
     import_ref:       Optional[str]   = ""
     cust_payment_id:  Optional[str]   = ""
+    a1:               Optional[str]   = ""
 
 
 class Transaction(BaseModel):
@@ -778,6 +780,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "mail_dt":     _str(r.get("MAIL_RECEIVED_DATE", "")) or None,
                     "import_ref":  _str(r.get("IMPORT_REFERENCE", "")),
                     "cust_payment_id": _str(r.get("CUST_PAYMENT_ID", "")),
+                    "a1":          _str(r.get("A1", "")) or _str(r.get("ATTRIBUTE1", "")),
                 }
             for _, r in dtl_df.iterrows():
                 transactions.append({
@@ -813,6 +816,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "mail_dt":     _str(r0.get("MAIL_RECEIVED_DATE")) or None,
                     "import_ref":  _str(r0.get("IMPORT_REFERENCE", "")),
                     "cust_payment_id": _str(r0.get("CUST_PAYMENT_ID", "")),
+                    "a1":          _str(r0.get("A1", "")) or _str(r0.get("ATTRIBUTE1", "")),
                 }
                 for _, r in rem.iterrows():
                     transactions.append({
@@ -877,6 +881,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
             mdt_col  = col("MAIL_RECEIVED_DATE", "mail_dt")
             ref_col  = col("IMPORT_REFERENCE", "import_ref")
             cpid_col = col("CUST_PAYMENT_ID", "cust_payment_id")
+            a1_col   = col("A1", "a1", "ATTRIBUTE1", "attribute1")
             log.info("Mapped columns — utr:%s name:%s mail_id:%s mail_dt:%s",
                      utr_col, name_col, mid_col, mdt_col)
 
@@ -893,6 +898,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "mail_dt":     _str(r0.get(mdt_col))  if mdt_col  else None,
                     "import_ref":  _str(r0.get(ref_col))  if ref_col  else "",
                     "cust_payment_id": _str(r0.get(cpid_col)) if cpid_col else "",
+                    "a1":          _str(r0.get(a1_col))   if a1_col   else "",
                 }
                 for _, r in df.iterrows():
                     transactions.append({
@@ -952,6 +958,7 @@ def approve_file(req: ApproveRequest):
             "mail_dt":         _convert_date(req.header.mail_dt) or None,
             "import_ref":      req.header.import_ref or "",
             "cust_payment_id": req.header.cust_payment_id or "",
+            "a1":              req.header.a1 or "",
         },
         "dtl": [
             {

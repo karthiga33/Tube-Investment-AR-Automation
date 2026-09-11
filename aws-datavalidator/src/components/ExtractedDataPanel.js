@@ -179,6 +179,7 @@ export default function ExtractedDataPanel({
           <div className="ph-grid ph-grid-3 ph-grid-border">
             <EditableHeaderCol label="MAIL ID"           value={header.mail_id}  onSave={readOnly ? null : v => updateHeader('mail_id', v)} />
             <EditableHeaderCol label="MAIL RECEIVED DATE" value={header.mail_dt} onSave={readOnly ? null : v => updateHeader('mail_dt', v)} />
+            <EditableHeaderCol label="A1"                value={header.a1}       onSave={readOnly ? null : v => updateHeader('a1', v)} />
           </div>
         </div>
 
