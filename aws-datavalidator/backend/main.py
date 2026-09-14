@@ -967,15 +967,15 @@ def approve_file(req: ApproveRequest):
         },
         "dtl": [
             {
-                "doc_no":  t.doc_no,
-                "doc_dt":  _convert_date(t.doc_dt),
-                "a1":      t.a1 or "",
-                "a2":      t.a2 or "",
-                "inv_amt": t.inv_amt,
-                "tds":     t.tds,
-                "ded":     t.ded,
-                "disc":    t.disc,
-                "net":     t.net,
+                "doc_no":     t.doc_no,
+                "doc_dt":     _convert_date(t.doc_dt),
+                "attribute1": t.a1 or "",   # A1 → Oracle ATTRIBUTE1
+                "attribute2": t.a2 or "",   # A2 (header discount) → Oracle ATTRIBUTE2
+                "inv_amt":    t.inv_amt,
+                "tds":        t.tds,
+                "ded":        t.ded,
+                "disc":       t.disc,
+                "net":        t.net,
             }
             for t in req.transactions
             if t.status != "rejected"
