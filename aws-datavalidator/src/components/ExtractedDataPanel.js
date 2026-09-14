@@ -140,7 +140,7 @@ export default function ExtractedDataPanel({
   const addRow = () => {
     const maxId = transactions.reduce((m, t) => Math.max(m, t._id || 0), 0);
     onTransactionChange([...transactions, {
-      _id: maxId + 1, doc_no: '', doc_dt: '', a1: '', inv_amt: 0,
+      _id: maxId + 1, doc_no: '', doc_dt: '', a1: '', a2: '', inv_amt: 0,
       tds: 0, ded: 0, disc: 0, net: 0, status: 'pending',
     }]);
   };
@@ -216,6 +216,7 @@ export default function ExtractedDataPanel({
                   <th>INVOICE #</th>
                   <th>DATE</th>
                   <th>A1</th>
+                  <th>A2</th>
                   <th className="num">GROSS</th>
                   <th className="num">DEDUCTION</th>
                   <th className="num">TDS</th>
@@ -263,6 +264,7 @@ function TxRow({ row, idx, onApprove, onReject, onUpdate, readOnly }) {
       <EditableCell value={row.doc_no}  onSave={readOnly ? null : v => onUpdate('doc_no', v)}  className="td-inv"  />
       <EditableCell value={row.doc_dt}  onSave={readOnly ? null : v => onUpdate('doc_dt', v)}  className="td-date" />
       <EditableCell value={row.a1}      onSave={readOnly ? null : v => onUpdate('a1', v)}      className="td-a1" />
+      <EditableCell value={row.a2}      onSave={readOnly ? null : v => onUpdate('a2', v)}      className="td-a2" />
       <EditableCell value={row.inv_amt} onSave={readOnly ? null : v => onUpdate('inv_amt', v)} numeric className="num" />
       <EditableCell value={row.ded}     onSave={readOnly ? null : v => onUpdate('ded', v)}     numeric className="num" />
       <EditableCell value={row.tds}     onSave={readOnly ? null : v => onUpdate('tds', v)}     numeric className="num" />

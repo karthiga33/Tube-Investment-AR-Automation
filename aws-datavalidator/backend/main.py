@@ -412,6 +412,7 @@ def build_excel(header: Dict, transactions: List[Dict]) -> bytes:
             "INVOICE_NO":  t.get("doc_no", ""),
             "DATE":        t.get("doc_dt", ""),
             "A1":          t.get("a1", ""),
+            "A2":          t.get("a2", ""),
             "GROSS":       t.get("inv_amt", 0),
             "TDS":         t.get("tds", 0),
             "DEDUCTION":   t.get("ded", 0),
@@ -450,6 +451,7 @@ class Transaction(BaseModel):
     doc_no:  Optional[str]   = ""
     doc_dt:  Optional[str]   = ""
     a1:      Optional[str]   = ""
+    a2:      Optional[str]   = ""
     inv_amt: Optional[float] = 0.0
     tds:     Optional[float] = 0.0
     ded:     Optional[float] = 0.0
@@ -786,6 +788,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                     "doc_no":  _str(r.get("INVOICE_NO")),
                     "doc_dt":  _str(r.get("DATE")),
                     "a1":      _str(r.get("A1", "")) or _str(r.get("ATTRIBUTE1", "")),
+                    "a2":      _str(r.get("A2", "")) or _str(r.get("ATTRIBUTE2", "")),
                     "inv_amt": _float(r.get("GROSS")),
                     "tds":     _float(r.get("TDS")),
                     "ded":     _float(r.get("DEDUCTION")),
@@ -822,6 +825,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                         "doc_no":  _str(r.get("DOCUMENT_NUMBER")),
                         "doc_dt":  _str(r.get("DOCUMENT_DATE")),
                         "a1":      _str(r.get("A1", "")) or _str(r.get("ATTRIBUTE1", "")),
+                        "a2":      _str(r.get("A2", "")) or _str(r.get("ATTRIBUTE2", "")),
                         "inv_amt": _float(r.get("INVOICE_AMOUNT")),
                         "tds":     _float(r.get("TDS_AMOUNT")),
                         "ded":     _float(r.get("DEDUCTION_AMOUNT")),
@@ -882,6 +886,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
             ref_col  = col("IMPORT_REFERENCE", "import_ref")
             cpid_col = col("CUST_PAYMENT_ID", "cust_payment_id")
             a1_col   = col("A1", "a1", "ATTRIBUTE1", "attribute1")
+            a2_col   = col("A2", "a2", "ATTRIBUTE2", "attribute2")
             log.info("Mapped columns — utr:%s name:%s mail_id:%s mail_dt:%s",
                      utr_col, name_col, mid_col, mdt_col)
 
@@ -904,6 +909,7 @@ def load_output_file(key: str = Query(..., description="S3 key of output XLSX"))
                         "doc_no":  _str(r.get(doc_col))  if doc_col  else "",
                         "doc_dt":  _str(r.get(ddt_col))  if ddt_col  else "",
                         "a1":      _str(r.get(a1_col))   if a1_col   else "",
+                        "a2":      _str(r.get(a2_col))   if a2_col   else "",
                         "inv_amt": _float(r.get(inv_col)) if inv_col else 0.0,
                         "tds":     _float(r.get(tds_col)) if tds_col else 0.0,
                         "ded":     _float(r.get(ded_col)) if ded_col else 0.0,
@@ -964,6 +970,7 @@ def approve_file(req: ApproveRequest):
                 "doc_no":  t.doc_no,
                 "doc_dt":  _convert_date(t.doc_dt),
                 "a1":      t.a1 or "",
+                "a2":      t.a2 or "",
                 "inv_amt": t.inv_amt,
                 "tds":     t.tds,
                 "ded":     t.ded,
