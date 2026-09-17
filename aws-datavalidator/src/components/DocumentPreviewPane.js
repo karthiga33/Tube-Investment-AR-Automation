@@ -197,7 +197,7 @@ export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, he
             src={`${previewUrl}#toolbar=1&view=FitH&scrollbar=1`}
             title={fileName}
             className="preview-iframe"
-            style={{ zoom: zoom }}
+            style={{ height: `${100 * zoom}%`, minHeight: `${100 * zoom}%` }}
           />
         )}
 

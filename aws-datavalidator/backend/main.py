@@ -594,26 +594,23 @@ def dashboard_summary():
     # If a file somehow exists in both folders, the most-recently modified one wins.
     status_map: Dict[str, Dict] = {}
 
-    for f in approved:
-        stem = Path(f["name"]).stem.lower()              # "mahavir"
-        lm   = f.get("last_modified", "")
-        existing = status_map.get(stem)
-        if not existing or lm > existing["last_modified"]:
-            status_map[stem] = {"status": "approved", "last_modified": lm}
-
-    for f in rejected:
-        stem = Path(f["name"]).stem.lower().replace("_rejected", "")  # "bajajmotors"
-        lm   = f.get("last_modified", "")
-        existing = status_map.get(stem)
-        if not existing or lm > existing["last_modified"]:
-            status_map[stem] = {"status": "rejected", "last_modified": lm}
+    def _valid_import_ref(v) -> bool:
+        """An import_reference is only valid (fully approved) if it is a real
+        downstream reference — not blank, '-', or an error sentinel."""
+        s = str(v).strip()
+        return bool(s) and s not in ("-", "0", "-1", "-2", "None", "nan")
 
     enriched = []
-    # Build vendor name + import_reference lookup from approved JSON files
+    # Build vendor name + import_reference lookup from approved JSON files.
+    # Also decide approval validity here: a file is only "approved" once a real
+    # import_reference has been captured. Approved JSON without a valid
+    # import_reference stays PENDING so it can be re-approved.
     vendor_names: Dict[str, str] = {}
     import_refs: Dict[str, str] = {}  # stem → import_reference
     for f in approved:
         stem = Path(f["name"]).stem.lower()
+        lm   = f.get("last_modified", "")
+        imp_ref = ""
         try:
             raw = s3_get(f["key"])
             data = json.loads(raw)
@@ -625,6 +622,18 @@ def dashboard_summary():
                 import_refs[stem] = str(imp_ref)
         except Exception:
             pass
+        # Only mark approved when the import_reference is valid.
+        if _valid_import_ref(imp_ref):
+            existing = status_map.get(stem)
+            if not existing or lm > existing["last_modified"]:
+                status_map[stem] = {"status": "approved", "last_modified": lm}
+
+    for f in rejected:
+        stem = Path(f["name"]).stem.lower().replace("_rejected", "")  # "bajajmotors"
+        lm   = f.get("last_modified", "")
+        existing = status_map.get(stem)
+        if not existing or lm > existing["last_modified"]:
+            status_map[stem] = {"status": "rejected", "last_modified": lm}
 
     for f in output:
         raw_stem   = Path(f["name"]).stem               # MAHAVIR_extracted
@@ -1474,20 +1483,26 @@ def list_multi_output_files():
     approved_keys = set()   # file stems in Approved/
     rejected_keys = set()   # file stems in Reject/
     approved_import_refs = {}  # cust_name_lower → import_reference
+    def _valid_import_ref(v) -> bool:
+        s = str(v).strip()
+        return bool(s) and s not in ("-", "0", "-1", "-2", "None", "nan")
+
     try:
         for item in s3_list(APPROVED_PREFIX):
             fname = item["name"].replace(".json", "").lower()
-            approved_keys.add(fname)
             # Read JSON to get actual customer name and import_reference
             try:
                 raw_json = s3_get(item["key"])
                 data = json.loads(raw_json)
                 aname = data.get("hdr", {}).get("cust_name", "").strip().lower()
-                if aname:
-                    approved_names.add(aname)
                 # Get import_reference
                 imp_ref = data.get("import_reference", "") or data.get("hdr", {}).get("import_ref", "")
-                if imp_ref:
+                # Only treat as approved when a real import_reference exists.
+                # Otherwise leave it out of approved_keys → stays pending / re-approvable.
+                if _valid_import_ref(imp_ref):
+                    approved_keys.add(fname)
+                    if aname:
+                        approved_names.add(aname)
                     approved_import_refs[aname] = str(imp_ref)
                     approved_import_refs[fname] = str(imp_ref)
             except Exception:
@@ -1571,14 +1586,47 @@ def multi_find_input(output_key: str = Query(...)):
     except HTTPException:
         return {"found": False}
 
+    def _norm(s: str) -> str:
+        # Normalise separators/spaces so "DESAI AGENCIES" == "desai-agencies"
+        s = s.lower().replace(" ", "-").replace("_", "-")
+        # Collapse repeated dashes
+        while "--" in s:
+            s = s.replace("--", "-")
+        return s.strip("-")
+
+    import re as _re
+    def _base(s: str) -> str:
+        # Strip a trailing numeric/duplicate suffix like "-1", "-2" that the
+        # output file may carry but the source input does not.
+        return _re.sub(r"-\d+$", "", _norm(s))
+
+    stem_n = _norm(stem)
+    stem_b = _base(stem)
+
     best = None
+    best_score = -1
     for item in items:
-        item_stem = Path(item["name"]).stem.lower()
-        if item_stem == stem:
+        item_stem_n = _norm(Path(item["name"]).stem)
+        item_stem_b = _base(item["name"] and Path(item["name"]).stem)
+
+        # Score candidates: exact match wins, then base-stem match, then
+        # prefix match either direction. Longer overlap = better.
+        if item_stem_n == stem_n:
+            score = 1000
+        elif item_stem_b == stem_b and stem_b:
+            score = 900 + len(item_stem_b)
+        elif item_stem_n.startswith(stem_b) or stem_n.startswith(item_stem_b):
+            score = 500 + min(len(item_stem_n), len(stem_n))
+        elif item_stem_n.startswith(stem_n) or stem_n.startswith(item_stem_n):
+            score = 400 + min(len(item_stem_n), len(stem_n))
+        else:
+            continue
+
+        if score > best_score:
+            best_score = score
             best = item
-            break
-        if item_stem.startswith(stem) or stem.startswith(item_stem):
-            best = item
+            if score >= 1000:
+                break
 
     if not best:
         return {"found": False, "stem_searched": stem}
@@ -1672,7 +1720,21 @@ def load_multi_file(key: str = Query(..., description="S3 key of multi-output XL
                 fname = item["name"].replace(".json", "").lower()
                 # Only consider approvals that belong to THIS file (stem prefix match)
                 if fname.startswith(stem.lower() + "_") or fname == stem.lower():
-                    approved_keys.add(fname)
+                    # A customer only counts as truly approved once a valid
+                    # import_reference has been captured from the downstream API.
+                    # If the JSON exists but has no import_reference (failed/partial
+                    # push), keep it pending so it can be re-approved.
+                    try:
+                        data = json.loads(s3_get(item["key"]))
+                        imp = str(
+                            data.get("import_reference", "")
+                            or data.get("hdr", {}).get("import_ref", "")
+                        ).strip()
+                        if imp and imp not in ("-", "0", "-1", "-2", "None", "nan"):
+                            approved_keys.add(fname)
+                    except Exception:
+                        # Can't read/parse — treat as not-yet-approved (pending)
+                        pass
         except Exception:
             pass
         try:
