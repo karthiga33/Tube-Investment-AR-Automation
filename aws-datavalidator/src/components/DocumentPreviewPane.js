@@ -53,6 +53,138 @@ const PaymentAdviceDoc = ({ header }) => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   parseRemittanceText — parse "glued" remittance email bodies where the cell
+   boundaries were lost during plain-text conversion.
+
+   Each record follows this pattern:
+     S|<docRefNumber>|<docNumber>|<invoiceType><Mon D, YYYY><amount>INR<withheld><paid>
+
+   Example:
+     S|3010010350667|271400008750|E-TDS-CM-1073219Jul 2, 2026-61.00INR.00-61.00
+─────────────────────────────────────────────────────────────────────────────── */
+function parseRemittanceText(text) {
+  if (!text || text.indexOf('|') === -1) return null;
+
+  // Strip a trailing "Total...." summary before splitting records, and capture it.
+  // e.g. "...119,007.44Total.007,318,979.71"  →  total = "7,318,979.71"
+  let body = text;
+  let total = null;
+  const totalMatch = body.match(/Total\.\d{2}([\d,]+\.\d{2})\s*$/);
+  if (totalMatch) {
+    total = totalMatch[1];
+    body = body.slice(0, totalMatch.index);
+  }
+
+  // Each record starts with "S|". Split on that boundary while keeping the S.
+  const chunks = body.split(/(?=S\|)/g).filter(c => c.trim().startsWith('S|'));
+  if (chunks.length < 2) return null;
+
+  // Trailing glued segment: <invoiceType><date><docAmount>INR<withheld=.00><paidAmount>
+  //   - date        = "Mon D, YYYY"
+  //   - docAmount   = signed number, greedy up to "INR"
+  //   - withheld    = always ".00" or "0.00" in this format (anchored, non-greedy)
+  //   - paidAmount  = the remaining signed number
+  const MONTHS = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec';
+  const NUM = '-?[\\d,]+\\.\\d{2}';               // e.g. -61.00, 71,900.32
+  const WITHHELD = '-?0?\\.\\d{2}';               // e.g. .00 or 0.00
+  const tailRe = new RegExp(
+    `^(.*?)((?:${MONTHS})\\s+\\d{1,2},\\s*\\d{4})(${NUM})(INR|USD|EUR|GBP)(${WITHHELD})(${NUM})$`
+  );
+
+  const rows = [];
+  for (const chunk of chunks) {
+    const parts = chunk.trim().split('|');
+    if (parts.length < 4) continue;
+    // parts[0] = "S", parts[1] = docRef, parts[2] = docNo, parts[3+] = glued tail
+    const docRef = parts[1];
+    const docNo  = parts[2];
+    const tail   = parts.slice(3).join('|');
+
+    const m = tail.match(tailRe);
+    if (m) {
+      rows.push([
+        docRef,          // Document Reference Number
+        docNo,           // Document Number
+        m[1].trim(),     // Invoice Type / Reference
+        m[2].trim(),     // Document Date
+        m[3],            // Document Amount
+        m[4],            // Currency
+        m[5],            // Amount Withheld
+        m[6],            // Amount Paid
+      ]);
+    } else {
+      // Row didn't match the strict pattern — keep raw so nothing is lost
+      rows.push([docRef, docNo, tail, '', '', '', '', '']);
+    }
+  }
+
+  if (rows.length < 2) return null;
+
+  const header = [
+    'Document Reference Number',
+    'Document Number',
+    'Invoice Type',
+    'Document Date',
+    'Document Amount',
+    'Currency',
+    'Amount Withheld',
+    'Amount Paid',
+  ];
+
+  return { rows: [header, ...rows], total };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   parseTextToTable — turn plain-text email body content into rows/columns.
+   First tries the remittance-specific parser, then falls back to detecting the
+   most likely column delimiter (tab, pipe, comma, or 2+ spaces).
+   Returns { rows, total? } when tabular, or null otherwise.
+─────────────────────────────────────────────────────────────────────────────── */
+function parseTextToTable(text) {
+  if (!text || !text.trim()) return null;
+
+  // 1) Try the remittance-specific format first (glued single-line content).
+  const remittance = parseRemittanceText(text);
+  if (remittance) return remittance;
+
+  // 2) Generic delimiter detection for well-separated text.
+  const lines = text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(l => l.replace(/\s+$/g, ''))
+    .filter(l => l.trim().length > 0);
+
+  if (lines.length < 2) return null;
+
+  const delimiters = [
+    { name: 'tab',   split: (l) => l.split('\t') },
+    { name: 'pipe',  split: (l) => l.split('|').map(c => c.trim()) },
+    { name: 'comma', split: (l) => l.split(',').map(c => c.trim()) },
+    { name: 'space', split: (l) => l.trim().split(/\s{2,}/) },
+  ];
+
+  for (const delim of delimiters) {
+    const rows = lines.map(delim.split);
+    const colCounts = rows.map(r => r.length);
+    const maxCols = Math.max(...colCounts);
+
+    if (maxCols < 2) continue;
+
+    const consistent = colCounts.filter(c => c === maxCols).length;
+    if (consistent >= Math.ceil(lines.length * 0.6)) {
+      const normalized = rows.map(r => {
+        const copy = [...r];
+        while (copy.length < maxCols) copy.push('');
+        return copy.slice(0, maxCols);
+      });
+      return { rows: normalized };
+    }
+  }
+
+  return null;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Main component
 ─────────────────────────────────────────────────────────────────────────────── */
 export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, header }) {
@@ -223,16 +355,44 @@ export default function DocumentPreviewPane({ fileName, previewUrl, inputExt, he
           />
         )}
 
-        {/* TXT — rendered as preformatted text */}
-        {isTxt && hasUrl && (
-          <div className="preview-txt-wrapper" style={{ zoom: zoom }}>
-            {txtLoading ? (
-              <p className="preview-txt-loading">Loading text file…</p>
-            ) : (
-              <pre className="preview-txt">{txtContent}</pre>
-            )}
-          </div>
-        )}
+        {/* TXT — rendered as a structured table when tabular, else preformatted text.
+            The "Text" toolbar mode forces the raw view. */}
+        {isTxt && hasUrl && (() => {
+          const parsed = viewMode === 'text' ? null : parseTextToTable(txtContent);
+          return (
+            <div className="preview-txt-wrapper" style={{ zoom: zoom }}>
+              {txtLoading ? (
+                <p className="preview-txt-loading">Loading text file…</p>
+              ) : parsed ? (
+                <div className="excel-table-scroll">
+                  <table className="excel-table">
+                    <tbody>
+                      {parsed.rows.map((row, ri) => (
+                        <tr key={ri} className={ri === 0 ? 'excel-header-row' : ''}>
+                          {row.map((cell, ci) => (
+                            ri === 0
+                              ? <th key={ci}>{cell}</th>
+                              : <td key={ci}>{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                      {parsed.total && (
+                        <tr className="excel-total-row">
+                          <td colSpan={(parsed.rows[0] || []).length - 1} style={{ textAlign: 'right', fontWeight: 700 }}>
+                            Total
+                          </td>
+                          <td style={{ fontWeight: 700 }}>{parsed.total}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <pre className="preview-txt">{txtContent}</pre>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Excel — rendered as HTML table */}
         {isExcel && hasUrl && (

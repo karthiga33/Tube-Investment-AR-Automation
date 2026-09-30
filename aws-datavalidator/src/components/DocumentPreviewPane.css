@@ -341,6 +341,12 @@
   background: #eef2ff;
 }
 
+.excel-table tr.excel-total-row td {
+  background: #f1f5ff;
+  border-top: 2px solid #1a1f36;
+  color: #1a1f36;
+}
+
 
 /* ── DOC/DOCX file preview ───────────────── */
 .preview-doc-wrapper {
